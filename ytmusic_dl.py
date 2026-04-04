@@ -24,7 +24,6 @@ def download(url, itag="141", output_format="m4a"):
 
     needs_extract = itag == "774" or output_format in ('mp3', 'opus', 'flac', 'ogg')
 
-    # Output template — album folder structure
     out_tmpl = os.path.join(OUTPUT,
         "%(album_artist|%(artist)s)s - %(album|%(title)s)s",
         "%(track_number|)s%(track_number& - |)s%(title)s.%(ext)s"

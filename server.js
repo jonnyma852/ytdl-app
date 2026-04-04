@@ -126,7 +126,7 @@ app.post('/api/fetch', (req, res) => {
       return;
     }
 
-    // Single track
+    // Single YouTube Music track
     let args = [
       '--extractor-args', 'youtube:player_client=web_music',
       '--remote-components', 'ejs:github',
@@ -202,7 +202,7 @@ app.post('/api/fetch', (req, res) => {
   }
 });
 
-// POST /api/download — regular YouTube download
+// POST /api/download — regular YouTube
 app.post('/api/download', (req, res) => {
   const { url, videoFormat, audioOutputFormat, audioSourceFormat, audioOnly } = req.body;
   if (!url) return res.status(400).json({ error: 'URL required' });
@@ -259,7 +259,7 @@ app.post('/api/ytmusic', (req, res) => {
 
   const python = PYTHON();
   const args = [YTMUSIC_SCRIPT, url, itag || '141', outputFormat || 'm4a'];
-  job.logs.push(`▶ Downloading via ytmusic_dl.py [itag=${itag || '141'}, format=${outputFormat || 'm4a'}]`);
+  job.logs.push(`▶ Downloading [itag=${itag || '141'}, format=${outputFormat || 'm4a'}]`);
 
   const proc = spawn(python, args, { env: ENV });
   proc.stdout.on('data', chunk => {

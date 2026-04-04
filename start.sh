@@ -10,18 +10,15 @@ pkill -f "bgutil-ytdlp-pot-provider/server/build/main.js" 2>/dev/null
 # Open bgutil server in a new Terminal window
 osascript -e 'tell application "Terminal" to do script "echo \"🔑 bgutil PO token server\" && cd ~/bgutil-ytdlp-pot-provider/server && node build/main.js"'
 
-# Wait for it to start
 echo "⏳ Waiting for bgutil server..."
 sleep 3
 
-# Verify
 if curl -s --max-time 2 http://127.0.0.1:4416/ping > /dev/null 2>&1; then
   echo "✓ bgutil server running"
 else
   echo "⚠ bgutil may still be starting — check the other Terminal window"
 fi
 
-# Start the app
 echo "🎬 Starting app at http://localhost:3737"
 cd "$(dirname "$0")"
 npm start
