@@ -7,14 +7,14 @@ echo "🚀 Starting ytdl-app..."
 # Kill any existing bgutil instance
 pkill -f "bgutil-ytdlp-pot-provider/server/build/main.js" 2>/dev/null
 
-# Open bgutil server in a new Terminal window (stays open independently)
+# Open bgutil server in a new Terminal window
 osascript -e 'tell application "Terminal" to do script "echo \"🔑 bgutil PO token server\" && cd ~/bgutil-ytdlp-pot-provider/server && node build/main.js"'
 
 # Wait for it to start
 echo "⏳ Waiting for bgutil server..."
 sleep 3
 
-# Verify bgutil is up
+# Verify
 if curl -s --max-time 2 http://127.0.0.1:4416/ping > /dev/null 2>&1; then
   echo "✓ bgutil server running"
 else

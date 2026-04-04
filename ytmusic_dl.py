@@ -12,13 +12,9 @@ COOKIES = "/Users/metic/Documents/SANDBOX/ytdl-app/cookies.txt"
 OUTPUT  = str(Path.home() / "Downloads" / "ytdl" / "YouTube Music")
 YTDLP   = "/Users/metic/anaconda3/bin/yt-dlp"
 
-# Output formats that support thumbnail embedding
-THUMBNAIL_SUPPORTED = {'m4a', 'mp3', 'opus', 'flac', 'ogg'}
-
 def download(url, itag="141", output_format="m4a"):
     Path(OUTPUT).mkdir(parents=True, exist_ok=True)
 
-    # Build format selector
     if itag == "bestaudio":
         fmt = "bestaudio[ext=m4a]/bestaudio"
     elif itag == "774":
@@ -26,11 +22,9 @@ def download(url, itag="141", output_format="m4a"):
     else:
         fmt = f"{itag}/141/140/bestaudio[ext=m4a]/bestaudio"
 
-    # For opus/webm itag, always extract to output_format
     needs_extract = itag == "774" or output_format in ('mp3', 'opus', 'flac', 'ogg')
 
-    # Output template — album folder + track file
-    # Use %(artist)s for file (not album_artist to avoid duplication)
+    # Output template — album folder structure
     out_tmpl = os.path.join(OUTPUT,
         "%(album_artist|%(artist)s)s - %(album|%(title)s)s",
         "%(track_number|)s%(track_number& - |)s%(title)s.%(ext)s"
@@ -53,7 +47,6 @@ def download(url, itag="141", output_format="m4a"):
     if needs_extract:
         base_args += ["-x", "--audio-format", output_format]
     else:
-        # M4A path — native container, thumbnail embedding works
         base_args += ["--postprocessor-args", "EmbedThumbnail:-disposition:v attached_pic"]
 
     base_args.append(url)

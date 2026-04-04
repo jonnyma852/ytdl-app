@@ -38,7 +38,7 @@ function isYTMusic(url) {
 }
 
 function isPlaylist(url) {
-  return url.includes('playlist?list=') || url.includes('browse/') || 
+  return url.includes('playlist?list=') || url.includes('browse/') ||
          (url.includes('list=') && !url.includes('watch?v='));
 }
 
@@ -63,7 +63,6 @@ app.post('/api/fetch', (req, res) => {
   if (music) {
     // For playlists/albums — check first track for 256kbps availability
     if (isPlaylist(url)) {
-      // Get first track URL from playlist
       let firstTrackArgs = ['--flat-playlist', '--dump-json', '--playlist-end', '1', '--no-warnings'];
       if (hasCookies) firstTrackArgs = ['--cookies', COOKIES_PATH, ...firstTrackArgs];
       firstTrackArgs.push(url.split('&si=')[0]);
@@ -84,12 +83,10 @@ app.post('/api/fetch', (req, res) => {
         } catch {}
 
         if (!firstUrl) {
-          // Fallback — no format check possible
           return res.json({ isMusic: true, isPlaylist: true, title, thumbnail, uploader,
             has256: null, bestKbps: 0, bestItag: '141', audioFormats: [] });
         }
 
-        // Check formats on first track
         let checkArgs = [
           '--extractor-args', 'youtube:player_client=web_music',
           '--remote-components', 'ejs:github',
@@ -126,10 +123,10 @@ app.post('/api/fetch', (req, res) => {
           }
         });
       });
-      return; // response sent inside callbacks above
+      return;
     }
 
-    // For YouTube Music single tracks: check formats using web_music client
+    // Single track
     let args = [
       '--extractor-args', 'youtube:player_client=web_music',
       '--remote-components', 'ejs:github',
@@ -150,11 +147,10 @@ app.post('/api/fetch', (req, res) => {
           .filter(f => f.acodec && f.acodec !== 'none' && (!f.vcodec || f.vcodec === 'none'))
           .map(f => ({ id: f.format_id, ext: f.ext, kbps: Math.round(f.abr || 0), acodec: f.acodec }))
           .sort((a, b) => b.kbps - a.kbps)
-          .filter((f, i, arr) => i === 0 || f.kbps !== arr[i-1].kbps); // dedupe by kbps
+          .filter((f, i, arr) => i === 0 || f.kbps !== arr[i-1].kbps);
 
         const has256 = audioFormats.some(f => f.kbps >= 200);
         const bestAudio = audioFormats[0];
-        // Prefer 141 (AAC/M4A) over 774 (Opus/WebM) — M4A supports thumbnail embedding
         const best256 = audioFormats.find(f => f.id === '141') || audioFormats.find(f => f.kbps >= 200);
 
         res.json({
@@ -172,7 +168,7 @@ app.post('/api/fetch', (req, res) => {
     });
 
   } else {
-    // Regular YouTube: standard dump-json
+    // Regular YouTube
     const proc = spawn(bin, ['--dump-json', '--no-playlist', url], { env: ENV });
     let stdout = '', stderr = '';
     proc.stdout.on('data', d => stdout += d);
