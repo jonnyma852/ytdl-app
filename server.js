@@ -34,18 +34,62 @@ const YTMUSIC_SCRIPT = path.join(__dirname, 'ytmusic_dl.py');
 const COOKIES_PATH = path.join(os.homedir(), 'Documents/SANDBOX/ytdl-app/cookies.txt');
 const BGUTIL_SERVER = path.join(os.homedir(), 'bgutil-ytdlp-pot-provider/server/build/main.js');
 
-function isYTMusic(url) {
-  return url.includes('music.youtube.com');
-}
-
+function isYTMusic(url) { return url.includes('music.youtube.com'); }
 function isPlaylist(url) {
   return url.includes('playlist?list=') || url.includes('browse/') ||
          (url.includes('list=') && !url.includes('watch?v='));
 }
-
 function isBgutilRunning() {
   try { execSync('curl -s --max-time 1 http://127.0.0.1:4416/ping', { timeout: 2000 }); return true; } catch { return false; }
 }
+
+// ── Auto-start bgutil as a child of this process ──────────────────────────────
+// bgutil cannot run as pure Node.js — it requires a BotGuard-capable JS runtime.
+// We start it as a child process so it lives and dies with `npm start`.
+// No daemon, no launchd, no separate terminal — kill the app and bgutil dies too.
+let bgutilProc = null;
+
+function startBgutilChild() {
+  if (!fs.existsSync(BGUTIL_SERVER)) {
+    console.log('   bgutil:  ✗ not found at ' + BGUTIL_SERVER);
+    return;
+  }
+  if (isBgutilRunning()) {
+    console.log('   bgutil:  ✓ already running on :4416');
+    return;
+  }
+
+  const node = findBin('node');
+  bgutilProc = spawn(node, [BGUTIL_SERVER], {
+    env: ENV,
+    stdio: ['ignore', 'pipe', 'pipe'], // capture output but don't show in terminal
+  });
+
+  bgutilProc.on('error', e => console.error('   bgutil:  ✗ failed to start:', e.message));
+  bgutilProc.on('exit', code => {
+    if (code !== 0 && code !== null) console.warn(`   bgutil:  exited with code ${code}`);
+    bgutilProc = null;
+  });
+
+  // Wait up to 8s for it to come up, then report
+  let waited = 0;
+  const check = setInterval(() => {
+    waited += 500;
+    if (isBgutilRunning()) {
+      clearInterval(check);
+      console.log('   bgutil:  ✓ running on :4416');
+    } else if (waited >= 8000) {
+      clearInterval(check);
+      console.warn('   bgutil:  ✗ did not come up within 8 seconds');
+    }
+  }, 500);
+}
+
+// Ensure bgutil child dies when this process exits
+process.on('exit', () => { if (bgutilProc) bgutilProc.kill(); });
+process.on('SIGINT', () => process.exit());
+process.on('SIGTERM', () => process.exit());
+// ─────────────────────────────────────────────────────────────────────────────
 
 // GET /api/status
 app.get('/api/status', (req, res) => {
@@ -55,73 +99,31 @@ app.get('/api/status', (req, res) => {
   const cookiesOk = fs.existsSync(COOKIES_PATH);
   let cookiesAge = null;
   if (cookiesOk) {
-    const stat = fs.statSync(COOKIES_PATH);
-    const ageHours = (Date.now() - stat.mtimeMs) / 1000 / 3600;
+    const ageHours = (Date.now() - fs.statSync(COOKIES_PATH).mtimeMs) / 1000 / 3600;
     cookiesAge = Math.round(ageHours);
   }
   res.json({ ytdlp: { available: !!ytdlpVersion, version: ytdlpVersion }, bgutil, cookies: cookiesOk, cookiesAge });
 });
 
-// POST /api/start-bgutil — start the bgutil server if not running
-app.post('/api/start-bgutil', (req, res) => {
-  if (isBgutilRunning()) {
-    return res.json({ ok: true, message: 'bgutil already running' });
-  }
-
-  if (!fs.existsSync(BGUTIL_SERVER)) {
-    return res.status(404).json({ ok: false, error: 'bgutil server not found at ' + BGUTIL_SERVER });
-  }
-
-  const node = findBin('node');
-  const proc = spawn(node, [BGUTIL_SERVER], {
-    env: ENV,
-    detached: true,
-    stdio: 'ignore',
-  });
-  proc.unref();
-
-  // Wait up to 5 seconds for it to come up
-  let attempts = 0;
-  const check = setInterval(() => {
-    attempts++;
-    if (isBgutilRunning()) {
-      clearInterval(check);
-      res.json({ ok: true, message: 'bgutil server started' });
-    } else if (attempts >= 10) {
-      clearInterval(check);
-      res.status(500).json({ ok: false, error: 'bgutil failed to start within 5 seconds' });
-    }
-  }, 500);
-});
-
-// POST /api/refresh-cookies — extract fresh cookies from Arc/Chrome browser
+// POST /api/refresh-cookies — extract fresh cookies from browser via yt-dlp
 app.post('/api/refresh-cookies', (req, res) => {
-  const { browser } = req.body;
-  const browserName = browser || 'chrome'; // Arc uses chrome cookie store
-
+  const browserName = req.body.browser || 'chrome';
   const bin = YTDLP();
-  // Use yt-dlp to extract cookies from the browser and save to our cookies file
-  // We fetch a dummy URL just to trigger cookie extraction
   const args = [
     '--cookies-from-browser', browserName,
     '--cookies', COOKIES_PATH,
-    '--skip-download',
-    '--no-warnings',
-    '--quiet',
+    '--skip-download', '--no-warnings', '--quiet',
     'https://music.youtube.com',
   ];
-
   const proc = spawn(bin, args, { env: ENV });
   let stderr = '';
   proc.stderr.on('data', d => stderr += d);
-
   proc.on('close', code => {
     if (code === 0 && fs.existsSync(COOKIES_PATH)) {
-      const stat = fs.statSync(COOKIES_PATH);
       const lines = fs.readFileSync(COOKIES_PATH, 'utf8').split('\n').filter(l => l && !l.startsWith('#')).length;
-      res.json({ ok: true, message: `Extracted ${lines} cookies from ${browserName}`, cookieCount: lines });
+      res.json({ ok: true, cookieCount: lines });
     } else {
-      res.status(500).json({ ok: false, error: stderr || `yt-dlp exited with code ${code}` });
+      res.status(500).json({ ok: false, error: stderr || `exit code ${code}` });
     }
   });
 });
@@ -142,30 +144,21 @@ app.post('/api/fetch', (req, res) => {
       firstTrackArgs.push(url.split('&si=')[0]);
 
       const flatProc = spawn(bin, firstTrackArgs, { env: ENV });
-      let flatOut = '', flatErr = '';
+      let flatOut = '';
       flatProc.stdout.on('data', d => flatOut += d);
-      flatProc.stderr.on('data', d => flatErr += d);
-
       flatProc.on('close', () => {
         let firstUrl = null, title = 'Album / Playlist', thumbnail = null, uploader = null;
         try {
-          const firstEntry = JSON.parse(flatOut.split('\n').filter(Boolean)[0]);
-          firstUrl = `https://music.youtube.com/watch?v=${firstEntry.id}`;
-          title = firstEntry.playlist_title || firstEntry.title || 'Album / Playlist';
-          thumbnail = firstEntry.thumbnail || firstEntry.thumbnails?.[0]?.url;
-          uploader = firstEntry.uploader || firstEntry.channel;
+          const e = JSON.parse(flatOut.split('\n').filter(Boolean)[0]);
+          firstUrl = `https://music.youtube.com/watch?v=${e.id}`;
+          title = e.playlist_title || e.title || 'Album / Playlist';
+          thumbnail = e.thumbnail || e.thumbnails?.[0]?.url;
+          uploader = e.uploader || e.channel;
         } catch {}
 
-        if (!firstUrl) {
-          return res.json({ isMusic: true, isPlaylist: true, title, thumbnail, uploader,
-            has256: null, bestKbps: 0, bestItag: '141', audioFormats: [] });
-        }
+        if (!firstUrl) return res.json({ isMusic: true, isPlaylist: true, title, thumbnail, uploader, has256: null, bestKbps: 0, bestItag: '141', audioFormats: [] });
 
-        let checkArgs = [
-          '--extractor-args', 'youtube:player_client=web_music',
-          '--remote-components', 'ejs:github',
-          '--dump-json', '--no-playlist',
-        ];
+        let checkArgs = ['--extractor-args', 'youtube:player_client=web_music', '--remote-components', 'ejs:github', '--dump-json', '--no-playlist'];
         if (hasCookies) checkArgs = ['--cookies', COOKIES_PATH, ...checkArgs];
         checkArgs.push(firstUrl);
 
@@ -179,30 +172,20 @@ app.post('/api/fetch', (req, res) => {
               .filter(f => f.acodec && f.acodec !== 'none' && (!f.vcodec || f.vcodec === 'none'))
               .map(f => ({ id: f.format_id, ext: f.ext, kbps: Math.round(f.abr || 0) }))
               .sort((a, b) => b.kbps - a.kbps)
-              .filter((f, i, arr) => i === 0 || f.kbps !== arr[i-1].kbps);
+              .filter((f, i, arr) => i === 0 || f.kbps !== arr[i - 1].kbps);
             const has256 = audioFormats.some(f => f.kbps >= 200);
             const best256 = audioFormats.find(f => f.id === '141') || audioFormats.find(f => f.kbps >= 200);
             const bestAudio = audioFormats[0];
-            res.json({
-              isMusic: true, isPlaylist: true, title, thumbnail, uploader,
-              has256, bestKbps: bestAudio?.kbps || 0,
-              bestItag: has256 ? (best256?.id || '141') : (bestAudio?.id || '140'),
-              audioFormats: audioFormats.slice(0, 6),
-            });
+            res.json({ isMusic: true, isPlaylist: true, title, thumbnail, uploader, has256, bestKbps: bestAudio?.kbps || 0, bestItag: has256 ? (best256?.id || '141') : (bestAudio?.id || '140'), audioFormats: audioFormats.slice(0, 6) });
           } catch {
-            res.json({ isMusic: true, isPlaylist: true, title, thumbnail, uploader,
-              has256: null, bestKbps: 0, bestItag: '141', audioFormats: [] });
+            res.json({ isMusic: true, isPlaylist: true, title, thumbnail, uploader, has256: null, bestKbps: 0, bestItag: '141', audioFormats: [] });
           }
         });
       });
       return;
     }
 
-    let args = [
-      '--extractor-args', 'youtube:player_client=web_music',
-      '--remote-components', 'ejs:github',
-      '--dump-json', '--no-playlist',
-    ];
+    let args = ['--extractor-args', 'youtube:player_client=web_music', '--remote-components', 'ejs:github', '--dump-json', '--no-playlist'];
     if (hasCookies) args = ['--cookies', COOKIES_PATH, ...args];
     args.push(url.split('&')[0]);
 
@@ -218,17 +201,12 @@ app.post('/api/fetch', (req, res) => {
           .filter(f => f.acodec && f.acodec !== 'none' && (!f.vcodec || f.vcodec === 'none'))
           .map(f => ({ id: f.format_id, ext: f.ext, kbps: Math.round(f.abr || 0), acodec: f.acodec }))
           .sort((a, b) => b.kbps - a.kbps)
-          .filter((f, i, arr) => i === 0 || f.kbps !== arr[i-1].kbps);
+          .filter((f, i, arr) => i === 0 || f.kbps !== arr[i - 1].kbps);
         const has256 = audioFormats.some(f => f.kbps >= 200);
-        const bestAudio = audioFormats[0];
         const best256 = audioFormats.find(f => f.id === '141') || audioFormats.find(f => f.kbps >= 200);
-        res.json({
-          isMusic: true, title: info.title, thumbnail: info.thumbnail, duration: info.duration,
-          uploader: info.uploader, has256, bestKbps: bestAudio?.kbps || 0,
-          bestItag: has256 ? (best256?.id || '141') : (bestAudio?.id || '140'),
-          audioFormats: audioFormats.slice(0, 6),
-        });
-      } catch(e) { res.status(500).json({ error: 'Parse error', detail: e.message }); }
+        const bestAudio = audioFormats[0];
+        res.json({ isMusic: true, title: info.title, thumbnail: info.thumbnail, duration: info.duration, uploader: info.uploader, has256, bestKbps: bestAudio?.kbps || 0, bestItag: has256 ? (best256?.id || '141') : (bestAudio?.id || '140'), audioFormats: audioFormats.slice(0, 6) });
+      } catch (e) { res.status(500).json({ error: 'Parse error', detail: e.message }); }
     });
 
   } else {
@@ -242,25 +220,15 @@ app.post('/api/fetch', (req, res) => {
         const info = JSON.parse(stdout);
         const videoFormats = [], audioFormats = [];
         (info.formats || []).forEach(f => {
-          const hasVideo = f.vcodec && f.vcodec !== 'none';
-          const hasAudio = f.acodec && f.acodec !== 'none';
-          if (hasVideo && !hasAudio && f.height) {
-            videoFormats.push({ format_id: f.format_id, ext: f.ext, height: f.height, fps: f.fps,
-              label: `${f.height}p${f.fps ? ` ${Math.round(f.fps)}fps` : ''} · ${f.ext.toUpperCase()}` });
-          } else if (hasAudio && !hasVideo) {
-            audioFormats.push({ format_id: f.format_id, ext: f.ext, abr: f.abr, acodec: f.acodec,
-              label: `${f.abr ? Math.round(f.abr) + 'kbps' : '?kbps'} · ${f.ext.toUpperCase()}` });
-          }
+          const hv = f.vcodec && f.vcodec !== 'none', ha = f.acodec && f.acodec !== 'none';
+          if (hv && !ha && f.height) videoFormats.push({ format_id: f.format_id, ext: f.ext, height: f.height, fps: f.fps, label: `${f.height}p${f.fps ? ` ${Math.round(f.fps)}fps` : ''} · ${f.ext.toUpperCase()}` });
+          else if (ha && !hv) audioFormats.push({ format_id: f.format_id, ext: f.ext, abr: f.abr, acodec: f.acodec, label: `${f.abr ? Math.round(f.abr) + 'kbps' : '?kbps'} · ${f.ext.toUpperCase()}` });
         });
-        const seenV = new Set();
-        const uniqueVideo = videoFormats.sort((a,b) => b.height - a.height)
-          .filter(f => { const k=`${f.height}-${f.ext}`; if(seenV.has(k))return false; seenV.add(k); return true; });
-        const seenA = new Set();
-        const uniqueAudio = audioFormats.sort((a,b) => (b.abr||0)-(a.abr||0))
-          .filter(f => { const k=`${Math.round(f.abr||0)}-${f.ext}`; if(seenA.has(k))return false; seenA.add(k); return true; });
-        res.json({ isMusic: false, title: info.title, thumbnail: info.thumbnail, duration: info.duration,
-          uploader: info.uploader, view_count: info.view_count, videoFormats: uniqueVideo, audioFormats: uniqueAudio });
-      } catch(e) { res.status(500).json({ error: 'Parse error', detail: e.message }); }
+        const seenV = new Set(), seenA = new Set();
+        const uV = videoFormats.sort((a, b) => b.height - a.height).filter(f => { const k = `${f.height}-${f.ext}`; if (seenV.has(k)) return false; seenV.add(k); return true; });
+        const uA = audioFormats.sort((a, b) => (b.abr || 0) - (a.abr || 0)).filter(f => { const k = `${Math.round(f.abr || 0)}-${f.ext}`; if (seenA.has(k)) return false; seenA.add(k); return true; });
+        res.json({ isMusic: false, title: info.title, thumbnail: info.thumbnail, duration: info.duration, uploader: info.uploader, videoFormats: uV, audioFormats: uA });
+      } catch (e) { res.status(500).json({ error: 'Parse error', detail: e.message }); }
     });
   }
 });
@@ -269,41 +237,30 @@ app.post('/api/fetch', (req, res) => {
 app.post('/api/download', (req, res) => {
   const { url, videoFormat, audioOutputFormat, audioSourceFormat, audioOnly } = req.body;
   if (!url) return res.status(400).json({ error: 'URL required' });
-
   const jobId = makeJobId();
   const job = { id: jobId, status: 'running', percent: 0, speed: '', eta: '', size: '', logs: [], statusMsg: '' };
   jobs[jobId] = job;
-
   const downloadDir = path.join(os.homedir(), 'Downloads', 'ytdl');
   if (!fs.existsSync(downloadDir)) fs.mkdirSync(downloadDir, { recursive: true });
-
   const bin = YTDLP();
   let args = ['--no-playlist', '--newline', '-o', path.join(downloadDir, '%(title)s.%(ext)s')];
-  if (audioOnly) {
-    args.push('-f', audioSourceFormat || 'bestaudio');
-    args.push('-x', '--audio-format', audioOutputFormat || 'mp3');
-  } else {
-    args.push('-f', videoFormat ? `${videoFormat}+bestaudio/best` : 'bestvideo+bestaudio/best');
-    args.push('--merge-output-format', 'mp4');
-  }
+  if (audioOnly) { args.push('-f', audioSourceFormat || 'bestaudio', '-x', '--audio-format', audioOutputFormat || 'mp3'); }
+  else { args.push('-f', videoFormat ? `${videoFormat}+bestaudio/best` : 'bestvideo+bestaudio/best', '--merge-output-format', 'mp4'); }
   args.push(url);
   job.logs.push(`▶ yt-dlp ${args.join(' ')}`);
-
   const proc = spawn(bin, args, { env: ENV });
   proc.stdout.on('data', chunk => {
     chunk.toString().split('\n').filter(Boolean).forEach(line => {
-      job.logs.push(line);
-      if (job.logs.length > 200) job.logs.shift();
+      job.logs.push(line); if (job.logs.length > 200) job.logs.shift();
       const m = line.match(/\[download\]\s+([\d.]+)%\s+of\s+~?([\d.]+\s*\S+)\s+at\s+([\d.]+\s*\S+\/s)\s+ETA\s+(\S+)/);
       if (m) { job.percent = parseFloat(m[1]); job.size = m[2]; job.speed = m[3]; job.eta = m[4]; }
       else if (line.includes('[Merger]')) job.statusMsg = 'Merging...';
       else if (line.includes('[download] Destination:')) job.statusMsg = 'Downloading: ' + path.basename(line.split('Destination:')[1].trim());
     });
   });
-  proc.stderr.on('data', chunk => { chunk.toString().split('\n').forEach(l => { if (l.trim()) job.logs.push('⚠ ' + l.trim()); }); });
+  proc.stderr.on('data', chunk => chunk.toString().split('\n').forEach(l => { if (l.trim()) job.logs.push('⚠ ' + l.trim()); }));
   proc.on('close', code => {
-    job.percent = code === 0 ? 100 : job.percent;
-    job.status = code === 0 ? 'done' : 'error';
+    job.percent = code === 0 ? 100 : job.percent; job.status = code === 0 ? 'done' : 'error';
     job.statusMsg = code === 0 ? 'Saved to ~/Downloads/ytdl/' : `Failed (exit ${code})`;
     job.logs.push(code === 0 ? '✓ Done!' : `✗ Failed (exit ${code})`);
   });
@@ -315,20 +272,15 @@ app.post('/api/download', (req, res) => {
 app.post('/api/ytmusic', (req, res) => {
   const { url, itag, outputFormat } = req.body;
   if (!url) return res.status(400).json({ error: 'URL required' });
-
   const jobId = makeJobId();
   const job = { id: jobId, status: 'running', percent: 0, speed: '', eta: '', size: '', logs: [], statusMsg: 'Starting...' };
   jobs[jobId] = job;
-
-  const python = PYTHON();
   const args = [YTMUSIC_SCRIPT, url, itag || '141', outputFormat || 'm4a'];
   job.logs.push(`▶ Downloading [itag=${itag || '141'}, format=${outputFormat || 'm4a'}]`);
-
-  const proc = spawn(python, args, { env: ENV });
+  const proc = spawn(PYTHON(), args, { env: ENV });
   proc.stdout.on('data', chunk => {
     chunk.toString().split('\n').filter(Boolean).forEach(line => {
-      job.logs.push(line);
-      if (job.logs.length > 300) job.logs.shift();
+      job.logs.push(line); if (job.logs.length > 300) job.logs.shift();
       const m = line.match(/\[download\]\s+([\d.]+)%\s+of\s+~?([\d.]+\s*\S+)\s+at\s+([\d.]+\s*\S+\/s)\s+ETA\s+(\S+)/);
       if (m) { job.percent = parseFloat(m[1]); job.size = m[2]; job.speed = m[3]; job.eta = m[4]; }
       else if (line.includes('[download] Destination:')) { job.statusMsg = 'Downloading: ' + path.basename(line.split('Destination:')[1].trim()); if (job.percent === 0) job.percent = 5; }
@@ -339,10 +291,9 @@ app.post('/api/ytmusic', (req, res) => {
       else if (line.includes('[EmbedThumbnail]')) { job.statusMsg = 'Embedding artwork...'; job.percent = 99; }
     });
   });
-  proc.stderr.on('data', chunk => { chunk.toString().split('\n').forEach(l => { if (l.trim()) job.logs.push('⚠ ' + l.trim()); }); });
+  proc.stderr.on('data', chunk => chunk.toString().split('\n').forEach(l => { if (l.trim()) job.logs.push('⚠ ' + l.trim()); }));
   proc.on('close', code => {
-    job.percent = code === 0 ? 100 : job.percent;
-    job.status = code === 0 ? 'done' : 'error';
+    job.percent = code === 0 ? 100 : job.percent; job.status = code === 0 ? 'done' : 'error';
     job.statusMsg = code === 0 ? 'Saved to ~/Downloads/ytdl/YouTube Music/' : `Failed (exit ${code})`;
     job.logs.push(code === 0 ? '✓ Done!' : `✗ Failed (exit ${code})`);
   });
@@ -361,5 +312,5 @@ app.listen(PORT, () => {
   console.log(`\n🎬 ytdl running at http://localhost:${PORT}`);
   console.log(`   yt-dlp:  ${YTDLP()}`);
   console.log(`   cookies: ${fs.existsSync(COOKIES_PATH) ? '✓' : '✗'} ${COOKIES_PATH}`);
-  console.log(`   bgutil:  ${isBgutilRunning() ? 'running' : 'offline'}`);
+  startBgutilChild(); // start bgutil as a child — lives and dies with this process
 });
