@@ -35,11 +35,6 @@ const COOKIES_PATH = path.join(os.homedir(), 'Documents/SANDBOX/ytdl-app/cookies
 const BGUTIL_SERVER = path.join(os.homedir(), 'bgutil-ytdlp-pot-provider/server/build/main.js');
 const APP_URL = `http://localhost:${PORT}`;
 
-// Using both web_music and ios player clients.
-// web_music gives correct metadata but no longer serves itag 141 to Premium accounts.
-// ios reliably returns 141 for Premium. Comma-separated = yt-dlp tries both.
-const YTM_PLAYER_CLIENTS = 'web_music,ios';
-
 function isYTMusic(url) { return url.includes('music.youtube.com'); }
 function isPlaylist(url) {
   return url.includes('playlist?list=') || url.includes('browse/') ||
@@ -78,41 +73,6 @@ process.on('SIGINT', () => process.exit());
 process.on('SIGTERM', () => process.exit());
 // ─────────────────────────────────────────────────────────────────────────────
 
-function resolveBrowserArg(browserKey) {
-  if (browserKey === 'arc') {
-    const arcProfile = path.join(os.homedir(), 'Library/Application Support/Arc/User Data');
-    if (fs.existsSync(arcProfile)) return `chrome:${arcProfile}`;
-    console.warn('[cookies] Arc profile not found at expected path, falling back to bare "chrome"');
-    return 'chrome';
-  }
-  return browserKey;
-}
-
-function auditCookies(cookiesPath) {
-  if (!fs.existsSync(cookiesPath)) return { total: 0, premiumCookies: [], hasPremium: false };
-  const lines = fs.readFileSync(cookiesPath, 'utf8').split('\n').filter(l => l && !l.startsWith('#'));
-  const PREMIUM_KEYS = ['__Secure-3PSID', '__Secure-3PAPISID', 'SAPISID', 'SSID', 'SID'];
-  const found = [];
-  for (const line of lines) {
-    const parts = line.split('\t');
-    if (parts.length >= 7) {
-      const name = parts[5];
-      if (PREMIUM_KEYS.includes(name) && !found.includes(name)) found.push(name);
-    }
-  }
-  const hasPremium = found.includes('__Secure-3PSID') || found.includes('__Secure-3PAPISID');
-  return { total: lines.length, premiumCookies: found, hasPremium };
-}
-
-function detect256(audioFormats) {
-  return audioFormats.some(f => f.id === '141' || f.kbps >= 200);
-}
-
-function normalisedKbps(f) {
-  if (f.format_id === '141') return 256;
-  return Math.round(f.abr || 0);
-}
-
 // GET /api/status
 app.get('/api/status', (req, res) => {
   let ytdlpVersion = null;
@@ -127,85 +87,37 @@ app.get('/api/status', (req, res) => {
   res.json({ ytdlp: { available: !!ytdlpVersion, version: ytdlpVersion }, bgutil, cookies: cookiesOk, cookiesAge });
 });
 
-// GET /api/debug-formats?url=<ytm-url>
-app.get('/api/debug-formats', (req, res) => {
-  const url = req.query.url;
-  if (!url) return res.status(400).json({ error: 'url query param required' });
-  const bin = YTDLP();
-  const hasCookies = fs.existsSync(COOKIES_PATH);
-  const cookieAudit = auditCookies(COOKIES_PATH);
-  const args = [
-    '--extractor-args', `youtube:player_client=${YTM_PLAYER_CLIENTS}`,
-    '--remote-components', 'ejs:github',
-    '--dump-json', '--no-playlist',
-  ];
-  if (hasCookies) args.push('--cookies', COOKIES_PATH);
-  args.push(url.split('&')[0]);
-  const proc = spawn(bin, args, { env: ENV });
-  let stdout = '', stderr = '';
-  proc.stdout.on('data', d => stdout += d);
-  proc.stderr.on('data', d => stderr += d);
-  proc.on('close', code => {
-    let rawAudioFormats = [];
-    try {
-      const info = JSON.parse(stdout);
-      rawAudioFormats = (info.formats || [])
-        .filter(f => f.acodec && f.acodec !== 'none' && (!f.vcodec || f.vcodec === 'none'))
-        .map(f => ({ format_id: f.format_id, ext: f.ext, acodec: f.acodec, abr: f.abr, tbr: f.tbr, filesize: f.filesize, quality: f.quality }))
-        .sort((a, b) => (b.abr || 0) - (a.abr || 0));
-    } catch {}
-    res.json({
-      playerClients: YTM_PLAYER_CLIENTS,
-      cookiesFile: hasCookies,
-      cookieAudit,
-      bgutil: isBgutilRunning(),
-      ytdlpExitCode: code,
-      stderr: stderr.trim().slice(0, 2000),
-      has141: rawAudioFormats.some(f => f.format_id === '141'),
-      audioFormats: rawAudioFormats,
-    });
-  });
-});
-
-// POST /api/refresh-cookies
+// POST /api/refresh-cookies — extract cookies from browser store via yt-dlp
 app.post('/api/refresh-cookies', (req, res) => {
-  const browserKey = req.body.browser || 'arc';
-  const browserArg = resolveBrowserArg(browserKey);
+  const browserName = req.body.browser || 'chrome'; // Arc shares Chrome's cookie store
   const bin = YTDLP();
-  console.log(`[cookies] Extracting from browser arg: ${browserArg}`);
+
+  // Ensure output directory exists
   const dir = path.dirname(COOKIES_PATH);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  try { if (fs.existsSync(COOKIES_PATH)) fs.unlinkSync(COOKIES_PATH); } catch {}
-  const args = [
-    '--cookies-from-browser', browserArg,
+
+  // yt-dlp --cookies-from-browser reads the live browser cookie DB and writes
+  // it to the file specified by --cookies. We use --skip-download so it doesn't
+  // actually fetch the video — just extracts cookies and exits.
+  const proc = spawn(bin, [
+    '--cookies-from-browser', browserName,
     '--cookies', COOKIES_PATH,
-    '--skip-download', '--quiet',
+    '--skip-download',
+    '--quiet',
     'https://music.youtube.com/watch?v=dQw4w9WgXcQ',
-  ];
-  console.log(`[cookies] Running: ${bin} ${args.join(' ')}`);
-  const proc = spawn(bin, args, { env: ENV });
+  ], { env: ENV });
+
   let stderr = '';
-  proc.stderr.on('data', d => { stderr += d; process.stderr.write(d); });
-  proc.stdout.on('data', d => process.stdout.write(d));
-  proc.on('close', (code) => {
-    console.log(`[cookies] yt-dlp exited with code ${code}`);
-    if (!fs.existsSync(COOKIES_PATH)) {
-      return res.status(500).json({
-        ok: false,
-        error: (stderr.trim() || 'No cookies file written.') + '\n\nTip: Make sure you are logged into music.youtube.com in your browser.',
-      });
+  proc.stderr.on('data', d => stderr += d);
+  proc.on('close', () => {
+    if (fs.existsSync(COOKIES_PATH)) {
+      const lines = fs.readFileSync(COOKIES_PATH, 'utf8')
+        .split('\n').filter(l => l && !l.startsWith('#')).length;
+      if (lines > 0) return res.json({ ok: true, cookieCount: lines });
     }
-    const audit = auditCookies(COOKIES_PATH);
-    console.log(`[cookies] Audit: total=${audit.total} premiumCookies=${audit.premiumCookies.join(',')} hasPremium=${audit.hasPremium}`);
-    if (audit.total === 0) {
-      return res.status(500).json({ ok: false, error: 'Cookies file written but empty.' });
-    }
-    return res.json({
-      ok: true,
-      cookieCount: audit.total,
-      premiumCookies: audit.premiumCookies,
-      hasPremium: audit.hasPremium,
-      warning: !audit.hasPremium ? 'Premium cookies not found — 256kbps unavailable.' : null,
+    res.status(500).json({
+      ok: false,
+      error: stderr.trim() || 'No cookies written — make sure you are logged into music.youtube.com in your browser',
     });
   });
 });
@@ -214,6 +126,7 @@ app.post('/api/refresh-cookies', (req, res) => {
 app.post('/api/fetch', (req, res) => {
   const { url } = req.body;
   if (!url) return res.status(400).json({ error: 'URL required' });
+
   const bin = YTDLP();
   const music = isYTMusic(url);
   const hasCookies = fs.existsSync(COOKIES_PATH);
@@ -223,6 +136,7 @@ app.post('/api/fetch', (req, res) => {
       let firstTrackArgs = ['--flat-playlist', '--dump-json', '--playlist-end', '1', '--no-warnings'];
       if (hasCookies) firstTrackArgs = ['--cookies', COOKIES_PATH, ...firstTrackArgs];
       firstTrackArgs.push(url.split('&si=')[0]);
+
       const flatProc = spawn(bin, firstTrackArgs, { env: ENV });
       let flatOut = '';
       flatProc.stdout.on('data', d => flatOut += d);
@@ -235,14 +149,13 @@ app.post('/api/fetch', (req, res) => {
           thumbnail = e.thumbnail || e.thumbnails?.[0]?.url;
           uploader = e.uploader || e.channel;
         } catch {}
+
         if (!firstUrl) return res.json({ isMusic: true, isPlaylist: true, title, thumbnail, uploader, has256: null, bestKbps: 0, bestItag: '141', audioFormats: [] });
-        let checkArgs = [
-          '--extractor-args', `youtube:player_client=${YTM_PLAYER_CLIENTS}`,
-          '--remote-components', 'ejs:github',
-          '--dump-json', '--no-playlist',
-        ];
+
+        let checkArgs = ['--extractor-args', 'youtube:player_client=web_music', '--remote-components', 'ejs:github', '--dump-json', '--no-playlist'];
         if (hasCookies) checkArgs = ['--cookies', COOKIES_PATH, ...checkArgs];
         checkArgs.push(firstUrl);
+
         const checkProc = spawn(bin, checkArgs, { env: ENV });
         let checkOut = '';
         checkProc.stdout.on('data', d => checkOut += d);
@@ -251,10 +164,10 @@ app.post('/api/fetch', (req, res) => {
             const info = JSON.parse(checkOut);
             const audioFormats = (info.formats || [])
               .filter(f => f.acodec && f.acodec !== 'none' && (!f.vcodec || f.vcodec === 'none'))
-              .map(f => ({ id: f.format_id, ext: f.ext, kbps: normalisedKbps(f), abr: f.abr }))
+              .map(f => ({ id: f.format_id, ext: f.ext, kbps: Math.round(f.abr || 0) }))
               .sort((a, b) => b.kbps - a.kbps)
               .filter((f, i, arr) => i === 0 || f.kbps !== arr[i - 1].kbps);
-            const has256 = detect256(audioFormats);
+            const has256 = audioFormats.some(f => f.kbps >= 200);
             const best256 = audioFormats.find(f => f.id === '141') || audioFormats.find(f => f.kbps >= 200);
             const bestAudio = audioFormats[0];
             res.json({ isMusic: true, isPlaylist: true, title, thumbnail, uploader, has256, bestKbps: bestAudio?.kbps || 0, bestItag: has256 ? (best256?.id || '141') : (bestAudio?.id || '140'), audioFormats: audioFormats.slice(0, 6) });
@@ -266,13 +179,10 @@ app.post('/api/fetch', (req, res) => {
       return;
     }
 
-    let args = [
-      '--extractor-args', `youtube:player_client=${YTM_PLAYER_CLIENTS}`,
-      '--remote-components', 'ejs:github',
-      '--dump-json', '--no-playlist',
-    ];
+    let args = ['--extractor-args', 'youtube:player_client=web_music', '--remote-components', 'ejs:github', '--dump-json', '--no-playlist'];
     if (hasCookies) args = ['--cookies', COOKIES_PATH, ...args];
     args.push(url.split('&')[0]);
+
     const proc = spawn(bin, args, { env: ENV });
     let stdout = '', stderr = '';
     proc.stdout.on('data', d => stdout += d);
@@ -283,10 +193,10 @@ app.post('/api/fetch', (req, res) => {
         const info = JSON.parse(stdout);
         const audioFormats = (info.formats || [])
           .filter(f => f.acodec && f.acodec !== 'none' && (!f.vcodec || f.vcodec === 'none'))
-          .map(f => ({ id: f.format_id, ext: f.ext, kbps: normalisedKbps(f), acodec: f.acodec }))
+          .map(f => ({ id: f.format_id, ext: f.ext, kbps: Math.round(f.abr || 0), acodec: f.acodec }))
           .sort((a, b) => b.kbps - a.kbps)
           .filter((f, i, arr) => i === 0 || f.kbps !== arr[i - 1].kbps);
-        const has256 = detect256(audioFormats);
+        const has256 = audioFormats.some(f => f.kbps >= 200);
         const best256 = audioFormats.find(f => f.id === '141') || audioFormats.find(f => f.kbps >= 200);
         const bestAudio = audioFormats[0];
         res.json({ isMusic: true, title: info.title, thumbnail: info.thumbnail, duration: info.duration, uploader: info.uploader, has256, bestKbps: bestAudio?.kbps || 0, bestItag: has256 ? (best256?.id || '141') : (bestAudio?.id || '140'), audioFormats: audioFormats.slice(0, 6) });
@@ -396,9 +306,12 @@ app.listen(PORT, () => {
   console.log(`\n🎬 ytdl running at ${APP_URL}`);
   console.log(`   yt-dlp:  ${YTDLP()}`);
   console.log(`   cookies: ${fs.existsSync(COOKIES_PATH) ? '✓' : '✗'} ${COOKIES_PATH}`);
+
+  // Copy app URL to clipboard — printf avoids the "-n" literal bug with echo -n
   try {
     execSync(`printf '%s' '${APP_URL}' | pbcopy`);
     console.log(`   📋  ${APP_URL} copied to clipboard`);
   } catch {}
+
   startBgutilChild();
 });

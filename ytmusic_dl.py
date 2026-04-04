@@ -12,11 +12,6 @@ COOKIES = "/Users/metic/Documents/SANDBOX/ytdl-app/cookies.txt"
 OUTPUT  = str(Path.home() / "Downloads" / "ytdl" / "YouTube Music")
 YTDLP   = "/Users/metic/anaconda3/bin/yt-dlp"
 
-# Using both web_music and ios player clients:
-# web_music gives correct metadata/artwork but has stopped serving itag 141 to Premium.
-# ios reliably returns 141 for Premium accounts.
-PLAYER_CLIENTS = "web_music,ios"
-
 def download(url, itag="141", output_format="m4a"):
     Path(OUTPUT).mkdir(parents=True, exist_ok=True)
 
@@ -37,7 +32,7 @@ def download(url, itag="141", output_format="m4a"):
     base_args = [
         YTDLP,
         "--cookies", COOKIES,
-        "--extractor-args", f"youtube:player_client={PLAYER_CLIENTS}",
+        "--extractor-args", "youtube:player_client=web_music",
         "--remote-components", "ejs:github",
         "-f", fmt,
         "--add-metadata",
@@ -55,7 +50,7 @@ def download(url, itag="141", output_format="m4a"):
 
     base_args.append(url)
 
-    print(f"\u25b6 {url}  [itag={itag}, format={output_format}]", flush=True)
+    print(f"▶ {url}  [itag={itag}, format={output_format}]", flush=True)
     result = subprocess.run(base_args)
     return result.returncode == 0
 
