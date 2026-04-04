@@ -87,34 +87,47 @@ app.get('/api/status', (req, res) => {
   res.json({ ytdlp: { available: !!ytdlpVersion, version: ytdlpVersion }, bgutil, cookies: cookiesOk, cookiesAge });
 });
 
-// POST /api/refresh-cookies — extract cookies directly from browser store (no URL needed)
+// POST /api/refresh-cookies — extract cookies directly from browser store
 app.post('/api/refresh-cookies', (req, res) => {
-  const browserName = req.body.browser || 'chrome'; // Arc uses chrome store
+  const browserName = req.body.browser || 'chrome';
   const bin = YTDLP();
 
-  // yt-dlp --cookies-from-browser extracts cookies without visiting any URL.
-  // We pass a blank input via --simulate on a known-good short video just to
-  // trigger the browser cookie extraction + save, then discard the download.
+  // Ensure output directory exists
+  const dir = path.dirname(COOKIES_PATH);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+  // yt-dlp can extract cookies from the browser without any URL.
+  // We use --cookies-from-browser to read the live browser DB and write to file.
   const args = [
     '--cookies-from-browser', browserName,
     '--cookies', COOKIES_PATH,
-    '--simulate',
-    '--no-warnings',
-    '--quiet',
-    'https://www.youtube.com/watch?v=dQw4w9WgXcQ', // short public video — only used to trigger extraction
+    '--print', '""',         // dummy --print to avoid needing a URL
+    ':',                     // empty URL placeholder (yt-dlp accepts this)
   ];
 
-  const proc = spawn(bin, args, { env: ENV });
+  // Simpler alternative: just use yt-dlp's built-in cookie export mode
+  // yt-dlp has a mode where passing only --cookies-from-browser + --cookies writes the file
+  const proc = spawn(bin, [
+    '--cookies-from-browser', browserName,
+    '--cookies', COOKIES_PATH,
+    '--no-download',
+    '--quiet',
+    '--ignore-errors',
+    'https://music.youtube.com/watch?v=dQw4w9WgXcQ',
+  ], { env: ENV });
+
   let stderr = '';
   proc.stderr.on('data', d => stderr += d);
-  proc.on('close', code => {
+  proc.on('close', () => {
+    // Check if cookies file was written regardless of exit code
     if (fs.existsSync(COOKIES_PATH)) {
-      const lines = fs.readFileSync(COOKIES_PATH, 'utf8').split('\n').filter(l => l && !l.startsWith('#')).length;
-      // Success as long as cookies file was written, even if yt-dlp returned non-zero
-      res.json({ ok: true, cookieCount: lines });
-    } else {
-      res.status(500).json({ ok: false, error: stderr.trim() || `exit code ${code}` });
+      const content = fs.readFileSync(COOKIES_PATH, 'utf8');
+      const lines = content.split('\n').filter(l => l && !l.startsWith('#')).length;
+      if (lines > 0) {
+        return res.json({ ok: true, cookieCount: lines });
+      }
     }
+    res.status(500).json({ ok: false, error: stderr.trim() || 'No cookies written — make sure you are logged in to music.youtube.com in your browser' });
   });
 });
 
@@ -303,9 +316,9 @@ app.listen(PORT, () => {
   console.log(`   yt-dlp:  ${YTDLP()}`);
   console.log(`   cookies: ${fs.existsSync(COOKIES_PATH) ? '✓' : '✗'} ${COOKIES_PATH}`);
 
-  // Copy the app URL to clipboard automatically
+  // Copy app URL to clipboard — printf avoids the "-n" literal bug with echo
   try {
-    execSync(`echo -n '${APP_URL}' | pbcopy`);
+    execSync(`printf '%s' '${APP_URL}' | pbcopy`);
     console.log(`   📋  ${APP_URL} copied to clipboard`);
   } catch {}
 
