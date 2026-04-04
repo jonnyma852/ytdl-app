@@ -33,6 +33,7 @@ const PYTHON = () => findBin('python3');
 const YTMUSIC_SCRIPT = path.join(__dirname, 'ytmusic_dl.py');
 const COOKIES_PATH = path.join(os.homedir(), 'Documents/SANDBOX/ytdl-app/cookies.txt');
 const BGUTIL_SERVER = path.join(os.homedir(), 'bgutil-ytdlp-pot-provider/server/build/main.js');
+const APP_URL = `http://localhost:${PORT}`;
 
 function isYTMusic(url) { return url.includes('music.youtube.com'); }
 function isPlaylist(url) {
@@ -44,9 +45,6 @@ function isBgutilRunning() {
 }
 
 // ── Auto-start bgutil as a child of this process ──────────────────────────────
-// bgutil cannot run as pure Node.js — it requires a BotGuard-capable JS runtime.
-// We start it as a child process so it lives and dies with `npm start`.
-// No daemon, no launchd, no separate terminal — kill the app and bgutil dies too.
 let bgutilProc = null;
 
 function startBgutilChild() {
@@ -58,34 +56,18 @@ function startBgutilChild() {
     console.log('   bgutil:  ✓ already running on :4416');
     return;
   }
-
   const node = findBin('node');
-  bgutilProc = spawn(node, [BGUTIL_SERVER], {
-    env: ENV,
-    stdio: ['ignore', 'pipe', 'pipe'], // capture output but don't show in terminal
-  });
-
+  bgutilProc = spawn(node, [BGUTIL_SERVER], { env: ENV, stdio: ['ignore', 'pipe', 'pipe'] });
   bgutilProc.on('error', e => console.error('   bgutil:  ✗ failed to start:', e.message));
-  bgutilProc.on('exit', code => {
-    if (code !== 0 && code !== null) console.warn(`   bgutil:  exited with code ${code}`);
-    bgutilProc = null;
-  });
-
-  // Wait up to 8s for it to come up, then report
+  bgutilProc.on('exit', code => { if (code !== 0 && code !== null) console.warn(`   bgutil:  exited (${code})`); bgutilProc = null; });
   let waited = 0;
   const check = setInterval(() => {
     waited += 500;
-    if (isBgutilRunning()) {
-      clearInterval(check);
-      console.log('   bgutil:  ✓ running on :4416');
-    } else if (waited >= 8000) {
-      clearInterval(check);
-      console.warn('   bgutil:  ✗ did not come up within 8 seconds');
-    }
+    if (isBgutilRunning()) { clearInterval(check); console.log('   bgutil:  ✓ running on :4416'); }
+    else if (waited >= 8000) { clearInterval(check); console.warn('   bgutil:  ✗ did not start within 8s'); }
   }, 500);
 }
 
-// Ensure bgutil child dies when this process exits
 process.on('exit', () => { if (bgutilProc) bgutilProc.kill(); });
 process.on('SIGINT', () => process.exit());
 process.on('SIGTERM', () => process.exit());
@@ -105,25 +87,33 @@ app.get('/api/status', (req, res) => {
   res.json({ ytdlp: { available: !!ytdlpVersion, version: ytdlpVersion }, bgutil, cookies: cookiesOk, cookiesAge });
 });
 
-// POST /api/refresh-cookies — extract fresh cookies from browser via yt-dlp
+// POST /api/refresh-cookies — extract cookies directly from browser store (no URL needed)
 app.post('/api/refresh-cookies', (req, res) => {
-  const browserName = req.body.browser || 'chrome';
+  const browserName = req.body.browser || 'chrome'; // Arc uses chrome store
   const bin = YTDLP();
+
+  // yt-dlp --cookies-from-browser extracts cookies without visiting any URL.
+  // We pass a blank input via --simulate on a known-good short video just to
+  // trigger the browser cookie extraction + save, then discard the download.
   const args = [
     '--cookies-from-browser', browserName,
     '--cookies', COOKIES_PATH,
-    '--skip-download', '--no-warnings', '--quiet',
-    'https://music.youtube.com',
+    '--simulate',
+    '--no-warnings',
+    '--quiet',
+    'https://www.youtube.com/watch?v=dQw4w9WgXcQ', // short public video — only used to trigger extraction
   ];
+
   const proc = spawn(bin, args, { env: ENV });
   let stderr = '';
   proc.stderr.on('data', d => stderr += d);
   proc.on('close', code => {
-    if (code === 0 && fs.existsSync(COOKIES_PATH)) {
+    if (fs.existsSync(COOKIES_PATH)) {
       const lines = fs.readFileSync(COOKIES_PATH, 'utf8').split('\n').filter(l => l && !l.startsWith('#')).length;
+      // Success as long as cookies file was written, even if yt-dlp returned non-zero
       res.json({ ok: true, cookieCount: lines });
     } else {
-      res.status(500).json({ ok: false, error: stderr || `exit code ${code}` });
+      res.status(500).json({ ok: false, error: stderr.trim() || `exit code ${code}` });
     }
   });
 });
@@ -309,8 +299,15 @@ app.get('/api/job/:id', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`\n🎬 ytdl running at http://localhost:${PORT}`);
+  console.log(`\n🎬 ytdl running at ${APP_URL}`);
   console.log(`   yt-dlp:  ${YTDLP()}`);
   console.log(`   cookies: ${fs.existsSync(COOKIES_PATH) ? '✓' : '✗'} ${COOKIES_PATH}`);
-  startBgutilChild(); // start bgutil as a child — lives and dies with this process
+
+  // Copy the app URL to clipboard automatically
+  try {
+    execSync(`echo -n '${APP_URL}' | pbcopy`);
+    console.log(`   📋  ${APP_URL} copied to clipboard`);
+  } catch {}
+
+  startBgutilChild();
 });
