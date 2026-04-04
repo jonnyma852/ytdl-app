@@ -35,6 +35,11 @@ const COOKIES_PATH = path.join(os.homedir(), 'Documents/SANDBOX/ytdl-app/cookies
 const BGUTIL_SERVER = path.join(os.homedir(), 'bgutil-ytdlp-pot-provider/server/build/main.js');
 const APP_URL = `http://localhost:${PORT}`;
 
+// Using both web_music and ios player clients.
+// web_music gives correct metadata but no longer serves itag 141 to Premium accounts.
+// ios reliably returns 141 for Premium. Comma-separated = yt-dlp tries both.
+const YTM_PLAYER_CLIENTS = 'web_music,ios';
+
 function isYTMusic(url) { return url.includes('music.youtube.com'); }
 function isPlaylist(url) {
   return url.includes('playlist?list=') || url.includes('browse/') ||
@@ -123,25 +128,19 @@ app.get('/api/status', (req, res) => {
 });
 
 // GET /api/debug-formats?url=<ytm-url>
-// Dumps every audio format yt-dlp sees for a track, with and without cookies,
-// so we can tell exactly what YouTube is serving and whether cookies are working.
 app.get('/api/debug-formats', (req, res) => {
   const url = req.query.url;
   if (!url) return res.status(400).json({ error: 'url query param required' });
-
   const bin = YTDLP();
   const hasCookies = fs.existsSync(COOKIES_PATH);
-
   const cookieAudit = auditCookies(COOKIES_PATH);
-
   const args = [
-    '--extractor-args', 'youtube:player_client=web_music',
+    '--extractor-args', `youtube:player_client=${YTM_PLAYER_CLIENTS}`,
     '--remote-components', 'ejs:github',
     '--dump-json', '--no-playlist',
   ];
   if (hasCookies) args.push('--cookies', COOKIES_PATH);
   args.push(url.split('&')[0]);
-
   const proc = spawn(bin, args, { env: ENV });
   let stdout = '', stderr = '';
   proc.stdout.on('data', d => stdout += d);
@@ -152,27 +151,17 @@ app.get('/api/debug-formats', (req, res) => {
       const info = JSON.parse(stdout);
       rawAudioFormats = (info.formats || [])
         .filter(f => f.acodec && f.acodec !== 'none' && (!f.vcodec || f.vcodec === 'none'))
-        .map(f => ({
-          format_id: f.format_id,
-          ext: f.ext,
-          acodec: f.acodec,
-          abr: f.abr,
-          tbr: f.tbr,
-          filesize: f.filesize,
-          quality: f.quality,
-        }))
+        .map(f => ({ format_id: f.format_id, ext: f.ext, acodec: f.acodec, abr: f.abr, tbr: f.tbr, filesize: f.filesize, quality: f.quality }))
         .sort((a, b) => (b.abr || 0) - (a.abr || 0));
     } catch {}
-
-    const has141 = rawAudioFormats.some(f => f.format_id === '141');
-
     res.json({
+      playerClients: YTM_PLAYER_CLIENTS,
       cookiesFile: hasCookies,
       cookieAudit,
       bgutil: isBgutilRunning(),
       ytdlpExitCode: code,
       stderr: stderr.trim().slice(0, 2000),
-      has141,
+      has141: rawAudioFormats.some(f => f.format_id === '141'),
       audioFormats: rawAudioFormats,
     });
   });
@@ -183,56 +172,40 @@ app.post('/api/refresh-cookies', (req, res) => {
   const browserKey = req.body.browser || 'arc';
   const browserArg = resolveBrowserArg(browserKey);
   const bin = YTDLP();
-
   console.log(`[cookies] Extracting from browser arg: ${browserArg}`);
-
   const dir = path.dirname(COOKIES_PATH);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   try { if (fs.existsSync(COOKIES_PATH)) fs.unlinkSync(COOKIES_PATH); } catch {}
-
   const args = [
     '--cookies-from-browser', browserArg,
     '--cookies', COOKIES_PATH,
-    '--skip-download',
-    '--quiet',
+    '--skip-download', '--quiet',
     'https://music.youtube.com/watch?v=dQw4w9WgXcQ',
   ];
-
   console.log(`[cookies] Running: ${bin} ${args.join(' ')}`);
   const proc = spawn(bin, args, { env: ENV });
-
   let stderr = '';
   proc.stderr.on('data', d => { stderr += d; process.stderr.write(d); });
   proc.stdout.on('data', d => process.stdout.write(d));
-
   proc.on('close', (code) => {
     console.log(`[cookies] yt-dlp exited with code ${code}`);
     if (!fs.existsSync(COOKIES_PATH)) {
       return res.status(500).json({
         ok: false,
-        error: (stderr.trim() || 'No cookies file written.') +
-          '\n\nTip: Make sure you are logged into music.youtube.com in your browser and the browser is fully closed or unlocked.',
+        error: (stderr.trim() || 'No cookies file written.') + '\n\nTip: Make sure you are logged into music.youtube.com in your browser.',
       });
     }
-
     const audit = auditCookies(COOKIES_PATH);
     console.log(`[cookies] Audit: total=${audit.total} premiumCookies=${audit.premiumCookies.join(',')} hasPremium=${audit.hasPremium}`);
-
     if (audit.total === 0) {
-      return res.status(500).json({
-        ok: false,
-        error: 'Cookies file was written but contains no cookie entries.\n\nMake sure you are logged into music.youtube.com in your browser.',
-      });
+      return res.status(500).json({ ok: false, error: 'Cookies file written but empty.' });
     }
-
     return res.json({
       ok: true,
       cookieCount: audit.total,
       premiumCookies: audit.premiumCookies,
       hasPremium: audit.hasPremium,
-      warning: !audit.hasPremium
-        ? 'Premium session cookies (__Secure-3PSID / __Secure-3PAPISID) were NOT found. 256kbps will not be available. Make sure you are logged into YouTube Premium in your browser.'
-        : null,
+      warning: !audit.hasPremium ? 'Premium cookies not found — 256kbps unavailable.' : null,
     });
   });
 });
@@ -241,7 +214,6 @@ app.post('/api/refresh-cookies', (req, res) => {
 app.post('/api/fetch', (req, res) => {
   const { url } = req.body;
   if (!url) return res.status(400).json({ error: 'URL required' });
-
   const bin = YTDLP();
   const music = isYTMusic(url);
   const hasCookies = fs.existsSync(COOKIES_PATH);
@@ -251,7 +223,6 @@ app.post('/api/fetch', (req, res) => {
       let firstTrackArgs = ['--flat-playlist', '--dump-json', '--playlist-end', '1', '--no-warnings'];
       if (hasCookies) firstTrackArgs = ['--cookies', COOKIES_PATH, ...firstTrackArgs];
       firstTrackArgs.push(url.split('&si=')[0]);
-
       const flatProc = spawn(bin, firstTrackArgs, { env: ENV });
       let flatOut = '';
       flatProc.stdout.on('data', d => flatOut += d);
@@ -264,13 +235,14 @@ app.post('/api/fetch', (req, res) => {
           thumbnail = e.thumbnail || e.thumbnails?.[0]?.url;
           uploader = e.uploader || e.channel;
         } catch {}
-
         if (!firstUrl) return res.json({ isMusic: true, isPlaylist: true, title, thumbnail, uploader, has256: null, bestKbps: 0, bestItag: '141', audioFormats: [] });
-
-        let checkArgs = ['--extractor-args', 'youtube:player_client=web_music', '--remote-components', 'ejs:github', '--dump-json', '--no-playlist'];
+        let checkArgs = [
+          '--extractor-args', `youtube:player_client=${YTM_PLAYER_CLIENTS}`,
+          '--remote-components', 'ejs:github',
+          '--dump-json', '--no-playlist',
+        ];
         if (hasCookies) checkArgs = ['--cookies', COOKIES_PATH, ...checkArgs];
         checkArgs.push(firstUrl);
-
         const checkProc = spawn(bin, checkArgs, { env: ENV });
         let checkOut = '';
         checkProc.stdout.on('data', d => checkOut += d);
@@ -294,10 +266,13 @@ app.post('/api/fetch', (req, res) => {
       return;
     }
 
-    let args = ['--extractor-args', 'youtube:player_client=web_music', '--remote-components', 'ejs:github', '--dump-json', '--no-playlist'];
+    let args = [
+      '--extractor-args', `youtube:player_client=${YTM_PLAYER_CLIENTS}`,
+      '--remote-components', 'ejs:github',
+      '--dump-json', '--no-playlist',
+    ];
     if (hasCookies) args = ['--cookies', COOKIES_PATH, ...args];
     args.push(url.split('&')[0]);
-
     const proc = spawn(bin, args, { env: ENV });
     let stdout = '', stderr = '';
     proc.stdout.on('data', d => stdout += d);
@@ -421,11 +396,9 @@ app.listen(PORT, () => {
   console.log(`\n🎬 ytdl running at ${APP_URL}`);
   console.log(`   yt-dlp:  ${YTDLP()}`);
   console.log(`   cookies: ${fs.existsSync(COOKIES_PATH) ? '✓' : '✗'} ${COOKIES_PATH}`);
-
   try {
     execSync(`printf '%s' '${APP_URL}' | pbcopy`);
     console.log(`   📋  ${APP_URL} copied to clipboard`);
   } catch {}
-
   startBgutilChild();
 });
