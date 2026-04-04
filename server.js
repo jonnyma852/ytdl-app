@@ -32,6 +32,7 @@ const YTDLP = () => findBin('yt-dlp');
 const PYTHON = () => findBin('python3');
 const YTMUSIC_SCRIPT = path.join(__dirname, 'ytmusic_dl.py');
 const COOKIES_PATH = path.join(os.homedir(), 'Documents/SANDBOX/ytdl-app/cookies.txt');
+const BGUTIL_SERVER = path.join(os.homedir(), 'bgutil-ytdlp-pot-provider/server/build/main.js');
 
 function isYTMusic(url) {
   return url.includes('music.youtube.com');
@@ -42,13 +43,87 @@ function isPlaylist(url) {
          (url.includes('list=') && !url.includes('watch?v='));
 }
 
+function isBgutilRunning() {
+  try { execSync('curl -s --max-time 1 http://127.0.0.1:4416/ping', { timeout: 2000 }); return true; } catch { return false; }
+}
+
 // GET /api/status
 app.get('/api/status', (req, res) => {
-  let ytdlpVersion = null, bgutilRunning = false;
+  let ytdlpVersion = null;
   try { ytdlpVersion = execSync(`${YTDLP()} --version`, { env: ENV }).toString().trim(); } catch {}
-  try { execSync('curl -s --max-time 1 http://127.0.0.1:4416/ping', { timeout: 2000 }); bgutilRunning = true; } catch {}
+  const bgutil = isBgutilRunning();
   const cookiesOk = fs.existsSync(COOKIES_PATH);
-  res.json({ ytdlp: { available: !!ytdlpVersion, version: ytdlpVersion }, bgutil: bgutilRunning, cookies: cookiesOk });
+  let cookiesAge = null;
+  if (cookiesOk) {
+    const stat = fs.statSync(COOKIES_PATH);
+    const ageHours = (Date.now() - stat.mtimeMs) / 1000 / 3600;
+    cookiesAge = Math.round(ageHours);
+  }
+  res.json({ ytdlp: { available: !!ytdlpVersion, version: ytdlpVersion }, bgutil, cookies: cookiesOk, cookiesAge });
+});
+
+// POST /api/start-bgutil — start the bgutil server if not running
+app.post('/api/start-bgutil', (req, res) => {
+  if (isBgutilRunning()) {
+    return res.json({ ok: true, message: 'bgutil already running' });
+  }
+
+  if (!fs.existsSync(BGUTIL_SERVER)) {
+    return res.status(404).json({ ok: false, error: 'bgutil server not found at ' + BGUTIL_SERVER });
+  }
+
+  const node = findBin('node');
+  const proc = spawn(node, [BGUTIL_SERVER], {
+    env: ENV,
+    detached: true,
+    stdio: 'ignore',
+  });
+  proc.unref();
+
+  // Wait up to 5 seconds for it to come up
+  let attempts = 0;
+  const check = setInterval(() => {
+    attempts++;
+    if (isBgutilRunning()) {
+      clearInterval(check);
+      res.json({ ok: true, message: 'bgutil server started' });
+    } else if (attempts >= 10) {
+      clearInterval(check);
+      res.status(500).json({ ok: false, error: 'bgutil failed to start within 5 seconds' });
+    }
+  }, 500);
+});
+
+// POST /api/refresh-cookies — extract fresh cookies from Arc/Chrome browser
+app.post('/api/refresh-cookies', (req, res) => {
+  const { browser } = req.body;
+  const browserName = browser || 'chrome'; // Arc uses chrome cookie store
+
+  const bin = YTDLP();
+  // Use yt-dlp to extract cookies from the browser and save to our cookies file
+  // We fetch a dummy URL just to trigger cookie extraction
+  const args = [
+    '--cookies-from-browser', browserName,
+    '--cookies', COOKIES_PATH,
+    '--skip-download',
+    '--no-warnings',
+    '--quiet',
+    'https://music.youtube.com',
+  ];
+
+  const proc = spawn(bin, args, { env: ENV });
+  let stderr = '';
+  proc.stderr.on('data', d => stderr += d);
+
+  proc.on('close', code => {
+    if (code === 0 && fs.existsSync(COOKIES_PATH)) {
+      const stat = fs.statSync(COOKIES_PATH);
+      const lines = fs.readFileSync(COOKIES_PATH, 'utf8').split('\n').filter(l => l && !l.startsWith('#')).length;
+      res.json({ ok: true, message: `Extracted ${lines} cookies from ${browserName}`, cookieCount: lines });
+    } else {
+      res.status(500).json({ ok: false, error: stderr || `yt-dlp exited with code ${code}` });
+    }
+  });
 });
 
 // POST /api/fetch — unified info fetch, auto-detects YouTube Music
@@ -61,7 +136,6 @@ app.post('/api/fetch', (req, res) => {
   const hasCookies = fs.existsSync(COOKIES_PATH);
 
   if (music) {
-    // For playlists/albums — check first track for 256kbps availability
     if (isPlaylist(url)) {
       let firstTrackArgs = ['--flat-playlist', '--dump-json', '--playlist-end', '1', '--no-warnings'];
       if (hasCookies) firstTrackArgs = ['--cookies', COOKIES_PATH, ...firstTrackArgs];
@@ -106,11 +180,9 @@ app.post('/api/fetch', (req, res) => {
               .map(f => ({ id: f.format_id, ext: f.ext, kbps: Math.round(f.abr || 0) }))
               .sort((a, b) => b.kbps - a.kbps)
               .filter((f, i, arr) => i === 0 || f.kbps !== arr[i-1].kbps);
-
             const has256 = audioFormats.some(f => f.kbps >= 200);
             const best256 = audioFormats.find(f => f.id === '141') || audioFormats.find(f => f.kbps >= 200);
             const bestAudio = audioFormats[0];
-
             res.json({
               isMusic: true, isPlaylist: true, title, thumbnail, uploader,
               has256, bestKbps: bestAudio?.kbps || 0,
@@ -126,7 +198,6 @@ app.post('/api/fetch', (req, res) => {
       return;
     }
 
-    // Single YouTube Music track
     let args = [
       '--extractor-args', 'youtube:player_client=web_music',
       '--remote-components', 'ejs:github',
@@ -148,19 +219,12 @@ app.post('/api/fetch', (req, res) => {
           .map(f => ({ id: f.format_id, ext: f.ext, kbps: Math.round(f.abr || 0), acodec: f.acodec }))
           .sort((a, b) => b.kbps - a.kbps)
           .filter((f, i, arr) => i === 0 || f.kbps !== arr[i-1].kbps);
-
         const has256 = audioFormats.some(f => f.kbps >= 200);
         const bestAudio = audioFormats[0];
         const best256 = audioFormats.find(f => f.id === '141') || audioFormats.find(f => f.kbps >= 200);
-
         res.json({
-          isMusic: true,
-          title: info.title,
-          thumbnail: info.thumbnail,
-          duration: info.duration,
-          uploader: info.uploader,
-          has256,
-          bestKbps: bestAudio?.kbps || 0,
+          isMusic: true, title: info.title, thumbnail: info.thumbnail, duration: info.duration,
+          uploader: info.uploader, has256, bestKbps: bestAudio?.kbps || 0,
           bestItag: has256 ? (best256?.id || '141') : (bestAudio?.id || '140'),
           audioFormats: audioFormats.slice(0, 6),
         });
@@ -168,7 +232,6 @@ app.post('/api/fetch', (req, res) => {
     });
 
   } else {
-    // Regular YouTube
     const proc = spawn(bin, ['--dump-json', '--no-playlist', url], { env: ENV });
     let stdout = '', stderr = '';
     proc.stdout.on('data', d => stdout += d);
@@ -298,4 +361,5 @@ app.listen(PORT, () => {
   console.log(`\n🎬 ytdl running at http://localhost:${PORT}`);
   console.log(`   yt-dlp:  ${YTDLP()}`);
   console.log(`   cookies: ${fs.existsSync(COOKIES_PATH) ? '✓' : '✗'} ${COOKIES_PATH}`);
+  console.log(`   bgutil:  ${isBgutilRunning() ? 'running' : 'offline'}`);
 });
