@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Cookies — never commit these
+cookies.txt
+*.txt
+
+# Downloads
+downloads/
+
+# Temp files
+temp/
+*.temp
+*.tmp
+
+# OS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo

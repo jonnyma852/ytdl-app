@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YTDL</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #080809;
+      --surface: #101013;
+      --surface2: #161619;
+      --border: #232328;
+      --border2: #2e2e35;
+      --gold: #c9a84c;
+      --gold-dim: #7a6230;
+      --gold-glow: rgba(201,168,76,0.12);
+      --red: #c95252;
+      --green: #52c97a;
+      --blue: #5299c9;
+      --text: #e4e2dc;
+      --text-dim: #6e6c67;
+      --text-muted: #2e2d2a;
+      --mono: 'JetBrains Mono', monospace;
+      --sans: 'Syne', sans-serif;
+      --r: 8px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
+
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+      pointer-events: none; z-index: 999; opacity: 0.6;
+    }
+
+    .app { position: relative; z-index: 1; max-width: 720px; margin: 0 auto; padding: 56px 20px 80px; }
+
+    /* Header */
+    header { margin-bottom: 40px; animation: up 0.5s ease both; }
+    .wordmark { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .wordmark-tag { font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.25em; text-transform: uppercase; color: var(--text-dim); }
+    .wordmark-sep { width: 24px; height: 1px; background: var(--border2); }
+    h1 { font-size: clamp(34px, 6vw, 52px); font-weight: 800; line-height: 0.95; letter-spacing: -0.03em; }
+    h1 .accent { color: var(--gold); }
+    .tagline { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-top: 10px; letter-spacing: 0.04em; }
+
+    /* Status pills */
+    .status-row { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; animation: up 0.5s 0.05s ease both; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 100px; font-family: var(--mono); font-size: 10px; color: var(--text-dim); background: var(--surface); }
+    .pill .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
+    .pill.ok .dot { background: var(--green); box-shadow: 0 0 5px var(--green); }
+    .pill.warn .dot { background: var(--gold); }
+    .pill.err .dot { background: var(--red); }
+
+    /* Card */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 24px; margin-bottom: 14px; animation: up 0.5s ease both; }
+    .card-label { font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 12px; }
+
+    /* URL input */
+    .url-row { display: flex; gap: 8px; }
+    input[type="text"] {
+      flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+      color: var(--text); font-family: var(--mono); font-size: 12px; padding: 11px 14px;
+      outline: none; transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    input[type="text"]:focus { border-color: var(--gold-dim); box-shadow: 0 0 0 3px var(--gold-glow); }
+    input[type="text"]::placeholder { color: var(--text-muted); }
+
+    /* Music URL highlight */
+    input.is-music { border-color: var(--blue) !important; box-shadow: 0 0 0 3px rgba(82,153,201,0.12) !important; }
+
+    /* Buttons */
+    button { font-family: var(--sans); font-weight: 700; cursor: pointer; border: none; border-radius: 6px; transition: all 0.15s; }
+    .btn-gold { background: var(--gold); color: #080809; padding: 11px 20px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; flex-shrink: 0; }
+    .btn-gold:hover { background: #dbb95a; transform: translateY(-1px); }
+    .btn-gold:active { transform: none; }
+    .btn-gold:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+    .btn-full { width: 100%; padding: 14px; font-size: 13px; letter-spacing: 0.1em; margin-top: 4px; }
+
+    /* Preview */
+    .preview { display: none; gap: 14px; padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid var(--border); }
+    .preview.show { display: flex; }
+    .thumb { width: 110px; height: 62px; border-radius: 4px; overflow: hidden; background: var(--surface2); flex-shrink: 0; }
+    .thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .preview-meta { flex: 1; min-width: 0; }
+    .preview-title { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 5px; }
+    .preview-details { font-family: var(--mono); font-size: 10px; color: var(--text-dim); }
+
+    /* Music quality badge */
+    .quality-badge {
+      display: none; align-items: center; gap: 10px;
+      padding: 10px 14px; border-radius: 6px; font-size: 12px; font-weight: 700;
+      margin-bottom: 12px;
+    }
+    .quality-badge.show { display: flex; }
+    .quality-badge.has256 { background: rgba(82,201,122,0.08); border: 1px solid rgba(82,201,122,0.25); color: var(--green); }
+    .quality-badge.no256 { background: rgba(201,168,76,0.08); border: 1px solid rgba(201,168,76,0.25); color: var(--gold); }
+
+    /* Format pills row */
+    .format-pills { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+    .format-pill {
+      padding: 4px 10px; border-radius: 100px; font-family: var(--mono); font-size: 10px; font-weight: 700;
+      border: 1px solid var(--border); color: var(--text-dim); background: var(--surface2);
+    }
+    .format-pill.best { border-color: rgba(82,201,122,0.35); color: var(--green); background: rgba(82,201,122,0.06); }
+
+    /* YT format selects */
+    .fmt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+    .fmt-group label { display: block; font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px; }
+    select {
+      width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+      color: var(--text); font-family: var(--mono); font-size: 12px; padding: 10px 12px;
+      outline: none; cursor: pointer; appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236e6c67'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px;
+    }
+
+    /* Mode toggle */
+    .mode-toggle { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 14px; background: var(--surface2); }
+    .mode-btn { flex: 1; padding: 9px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; background: transparent; color: var(--text-dim); border: none; border-radius: 0; transition: all 0.15s; cursor: pointer; }
+    .mode-btn.active { background: var(--gold); color: #080809; }
+    .mode-btn:not(.active):hover { background: var(--surface); color: var(--text); }
+
+    /* Progress */
+    .progress-wrap { display: none; margin-top: 16px; }
+    .progress-wrap.show { display: block; }
+    hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+    .progress-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
+    .progress-label { font-family: var(--mono); font-size: 11px; color: var(--text-dim); }
+    .progress-pct { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--gold); }
+    .progress-track { width: 100%; height: 2px; background: var(--surface2); border-radius: 2px; overflow: hidden; margin-bottom: 8px; }
+    .progress-fill { height: 100%; width: 0%; border-radius: 2px; transition: width 0.3s ease; background: linear-gradient(90deg, var(--gold-dim), var(--gold)); box-shadow: 0 0 6px var(--gold); }
+    .progress-meta { display: flex; gap: 14px; font-family: var(--mono); font-size: 10px; color: var(--text-dim); }
+
+    /* Console */
+    .console { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; max-height: 130px; overflow-y: auto; margin-top: 10px; display: none; font-family: var(--mono); font-size: 10px; }
+    .console.show { display: block; }
+    .log-line { padding: 1px 0; color: var(--text-dim); border-bottom: 1px solid var(--border); }
+    .log-line:last-child { border: none; }
+    .log-line.success { color: var(--green); }
+    .log-line.error { color: var(--red); }
+
+    /* Done */
+    .done-banner { display: none; align-items: center; gap: 8px; padding: 11px 14px; margin-top: 12px; border-radius: 6px; font-size: 12px; font-weight: 600; background: rgba(82,201,122,0.07); border: 1px solid rgba(82,201,122,0.2); color: var(--green); }
+    .done-banner.show { display: flex; }
+
+    /* Spinner */
+    .spin { width: 12px; height: 12px; border: 2px solid var(--border2); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; vertical-align: middle; margin-right: 6px; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-track { background: var(--surface2); }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="wordmark">
+      <span class="wordmark-tag">Local</span>
+      <span class="wordmark-sep"></span>
+      <span class="wordmark-tag">Downloader</span>
+    </div>
+    <h1>GET THE <span class="accent">AUDIO.</span><br>GET THE <span class="accent">VIDEO.</span></h1>
+    <p class="tagline">// paste any YouTube or YouTube Music link</p>
+  </header>
+
+  <!-- Status -->
+  <div class="status-row">
+    <div class="pill" id="pillYtdlp"><span class="dot"></span><span id="pillYtdlpTxt">checking...</span></div>
+    <div class="pill" id="pillBgutil"><span class="dot"></span><span id="pillBgutilTxt">bgutil...</span></div>
+    <div class="pill" id="pillCookies" onclick="toggleCookiesCard()" style="cursor:pointer;" title="Click for cookie refresh instructions"><span class="dot"></span><span id="pillCookiesTxt">cookies...</span></div>
+  </div>
+
+  <!-- Cookies info -->
+  <div class="card" id="cookiesCard" style="display:none;">
+    <div class="card-label">YouTube Music Cookies</div>
+    <div style="font-family:var(--mono);font-size:11px;line-height:1.8;color:var(--text-dim);">
+      Cookies expire periodically. If 256kbps stops showing up, refresh them:<br><br>
+      <span style="color:var(--text);">1.</span> Open Arc → go to <strong style="color:var(--text);">music.youtube.com</strong> (logged in)<br>
+      <span style="color:var(--text);">2.</span> Click the <strong style="color:var(--text);">Open Cookies.txt</strong> extension → Export<br>
+      <span style="color:var(--text);">3.</span> Save the file, replacing:<br>
+      <code style="display:block;margin-top:6px;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;font-size:10px;color:var(--gold);user-select:all;cursor:pointer;" onclick="navigator.clipboard.writeText(this.textContent)">~/Documents/SANDBOX/ytdl-app/cookies.txt</code>
+      <span style="display:block;margin-top:6px;font-size:10px;">(click path above to copy)</span>
+    </div>
+    <button onclick="document.getElementById('cookiesCard').style.display='none'" style="margin-top:14px;background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);padding:7px 14px;font-size:11px;font-family:var(--sans);font-weight:700;border-radius:6px;cursor:pointer;">Dismiss</button>
+  </div>
+
+  <!-- Main Card -->
+  <div class="card">
+    <div class="card-label">Paste Link</div>
+    <div class="url-row">
+      <input type="text" id="urlInput" placeholder="https://youtube.com/watch?v=... or https://music.youtube.com/..." />
+      <button class="btn-gold" id="fetchBtn" onclick="doFetch()">Fetch</button>
+    </div>
+  </div>
+
+  <!-- Format Card — shown after fetch -->
+  <div class="card" id="formatCard" style="display:none;">
+    <div class="card-label" id="formatCardLabel">Format</div>
+
+    <!-- Preview -->
+    <div class="preview" id="preview">
+      <div class="thumb"><img id="thumbImg" src="" alt="" /></div>
+      <div class="preview-meta">
+        <div class="preview-title" id="previewTitle">—</div>
+        <div class="preview-details" id="previewDetails">—</div>
+      </div>
+    </div>
+
+    <!-- ── MUSIC MODE ── -->
+    <div id="musicMode" style="display:none;">
+      <div class="quality-badge" id="qualityBadge"></div>
+
+      <!-- Quality selector — shown after fetch -->
+      <div id="musicQualityRow" style="display:none; margin-bottom:14px;">
+        <div class="fmt-grid">
+          <div class="fmt-group">
+            <label>Audio Quality</label>
+            <select id="musicQualitySelect" onchange="onMusicQualityChange()"></select>
+          </div>
+          <div class="fmt-group">
+            <label>Output Format</label>
+            <select id="musicFormatSelect">
+              <option value="m4a">M4A (AAC)</option>
+              <option value="opus">Opus</option>
+              <option value="mp3">MP3</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-gold btn-full" id="musicDlBtn" onclick="doMusicDownload()">DOWNLOAD</button>
+    </div>
+
+    <!-- ── YT MODE ── -->
+    <div id="ytMode" style="display:none;">
+      <div class="mode-toggle">
+        <button class="mode-btn active" id="modeVideo" onclick="setMode('video')">▶ Video + Audio</button>
+        <button class="mode-btn" id="modeAudio" onclick="setMode('audio')">♪ Audio Only</button>
+      </div>
+      <div id="ytVideoGroup">
+        <div class="fmt-grid">
+          <div class="fmt-group"><label>Quality</label><select id="ytVideoQuality"></select></div>
+          <div class="fmt-group"><label>Container</label>
+            <select id="ytContainer">
+              <option value="mp4">MP4</option><option value="mkv">MKV</option><option value="webm">WebM</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div id="ytAudioGroup" style="display:none;">
+        <div class="fmt-grid">
+          <div class="fmt-group"><label>Source Bitrate</label><select id="ytAudioBitrate"></select></div>
+          <div class="fmt-group"><label>Output Format</label>
+            <select id="ytAudioOutput">
+              <option value="mp3">MP3</option><option value="m4a">M4A</option>
+              <option value="flac">FLAC</option><option value="opus">Opus</option><option value="wav">WAV</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <button class="btn-gold btn-full" id="ytDlBtn" onclick="doYtDownload()">DOWNLOAD</button>
+    </div>
+
+    <!-- Progress (shared) -->
+    <div class="progress-wrap" id="progressWrap">
+      <hr />
+      <div class="progress-header">
+        <span class="progress-label" id="progressLabel">Starting...</span>
+        <span class="progress-pct" id="progressPct">0%</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="progress-meta">
+        <span id="progressSpeed">—</span>
+        <span id="progressEta">ETA: —</span>
+        <span id="progressSize">—</span>
+      </div>
+    </div>
+    <div class="console" id="console"></div>
+    <div class="done-banner" id="doneBanner"></div>
+  </div>
+
+</div>
+
+<script>
+  let currentMode = 'video';
+  let currentIsMusic = false;
+  let musicItag = '141';
+  let ytVideoFormats = [], ytAudioFormats = [];
+
+  // ── STATUS ──
+  async function checkStatus() {
+    try {
+      const d = await fetch('/api/status').then(r => r.json());
+      setPill('pillYtdlp', d.ytdlp?.available, d.ytdlp?.version || 'yt-dlp missing');
+      setPill('pillBgutil', d.bgutil, d.bgutil ? 'bgutil ✓' : 'bgutil offline');
+      setPill('pillCookies', d.cookies, d.cookies ? 'cookies ✓' : 'no cookies ⓘ');
+      if (!d.cookies) document.getElementById('cookiesCard').style.display = 'block';
+    } catch {}
+  }
+
+  function toggleCookiesCard() {
+    const card = document.getElementById('cookiesCard');
+    card.style.display = card.style.display === 'none' ? 'block' : 'none';
+  }
+
+  function setPill(id, ok, text) {
+    const el = document.getElementById(id);
+    el.classList.remove('ok','warn','err');
+    el.classList.add(ok ? 'ok' : 'err');
+    el.querySelector('span:last-child').textContent = text;
+  }
+
+  // ── URL detection ──
+  function isYTMusic(url) { return url.includes('music.youtube.com'); }
+
+  document.getElementById('urlInput').addEventListener('input', function() {
+    this.classList.toggle('is-music', isYTMusic(this.value));
+  });
+
+  // ── FETCH ──
+  async function doFetch() {
+    const url = document.getElementById('urlInput').value.trim();
+    if (!url) return;
+
+    const btn = document.getElementById('fetchBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span>Fetching';
+
+    // Reset
+    document.getElementById('formatCard').style.display = 'none';
+    document.getElementById('doneBanner').classList.remove('show');
+    document.getElementById('progressWrap').classList.remove('show');
+    document.getElementById('console').classList.remove('show');
+    document.getElementById('console').innerHTML = '';
+
+    try {
+      const res = await fetch('/api/fetch', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error || 'Fetch failed'); return; }
+
+      currentIsMusic = data.isMusic;
+
+      // Preview
+      if (data.thumbnail) {
+        document.getElementById('thumbImg').src = data.thumbnail;
+        document.getElementById('preview').classList.add('show');
+      } else {
+        document.getElementById('preview').classList.remove('show');
+      }
+      document.getElementById('previewTitle').textContent = data.title || '—';
+      const dur = data.duration ? fmtDur(data.duration) : '';
+      document.getElementById('previewDetails').textContent = [dur, data.uploader].filter(Boolean).join(' · ');
+
+      if (data.isMusic) {
+        renderMusicMode(data);
+      } else {
+        renderYtMode(data);
+      }
+
+      document.getElementById('formatCard').style.display = 'block';
+    } catch(e) { alert('Error: ' + e.message); }
+    finally { btn.disabled = false; btn.textContent = 'Fetch'; }
+  }
+
+  // Music quality options for playlists/albums (no format check done)
+  const PLAYLIST_QUALITY_OPTIONS = [
+    { id: '141', label: '256kbps AAC (best, if available)', kbps: 256 },
+    { id: '140', label: '128kbps AAC', kbps: 128 },
+    { id: '774', label: '256kbps Opus (if available)', kbps: 256 },
+    { id: 'bestaudio', label: 'Best available', kbps: 0 },
+  ];
+
+  function renderMusicMode(data) {
+    document.getElementById('musicMode').style.display = 'block';
+    document.getElementById('ytMode').style.display = 'none';
+    document.getElementById('formatCardLabel').textContent = 'YouTube Music';
+
+    const badge = document.getElementById('qualityBadge');
+    const dlBtn = document.getElementById('musicDlBtn');
+    const qualityRow = document.getElementById('musicQualityRow');
+    const qualitySelect = document.getElementById('musicQualitySelect');
+
+    qualityRow.style.display = 'block';
+    qualitySelect.innerHTML = '';
+
+    if (data.isPlaylist) {
+      // Show 256kbps status based on first-track check
+      if (data.has256 === true) {
+        badge.className = 'quality-badge show has256';
+        badge.innerHTML = `♫ Album / Playlist — 256kbps available (${data.bestKbps}kbps on first track)`;
+      } else if (data.has256 === false) {
+        badge.className = 'quality-badge show no256';
+        badge.innerHTML = `♫ Album / Playlist — 256kbps not available, best is ${data.bestKbps}kbps`;
+      } else {
+        badge.className = 'quality-badge show no256';
+        badge.innerHTML = '♫ Album / Playlist';
+      }
+      // For playlists use preset options (or actual formats if available)
+      const qualityOpts = data.audioFormats?.length ? data.audioFormats : PLAYLIST_QUALITY_OPTIONS.map(o => ({ id: o.id, ext: 'm4a', kbps: o.kbps, label: o.label }));
+      qualityOpts.forEach(o => {
+        const opt = document.createElement('option');
+        opt.value = o.id;
+        opt.textContent = o.label || `${o.kbps}kbps ${(o.ext||'').toUpperCase()} (${o.id})`;
+        if (o.id === data.bestItag) opt.selected = true;
+        qualitySelect.appendChild(opt);
+      });
+      musicItag = data.bestItag || '141';
+    } else {
+      // Single track — populate from actual available formats
+      if (data.has256) {
+        badge.className = 'quality-badge show has256';
+        badge.innerHTML = '✓ 256kbps available';
+      } else {
+        badge.className = 'quality-badge show no256';
+        badge.innerHTML = `⚠ 256kbps not available — best is ${data.bestKbps}kbps`;
+      }
+
+      // Populate quality selector from actual formats
+      (data.audioFormats || []).forEach(f => {
+        const opt = document.createElement('option');
+        opt.value = f.id;
+        opt.textContent = `${f.kbps}kbps ${f.ext.toUpperCase()} (${f.id})`;
+        if (f.id === data.bestItag) opt.selected = true;
+        qualitySelect.appendChild(opt);
+      });
+
+      musicItag = data.bestItag;
+    }
+
+    onMusicQualityChange();
+  }
+
+  function onMusicQualityChange() {
+    const sel = document.getElementById('musicQualitySelect');
+    const fmt = document.getElementById('musicFormatSelect');
+    const btn = document.getElementById('musicDlBtn');
+    musicItag = sel.value;
+
+    // Auto-set output format based on selected itag
+    if (musicItag === '774') {
+      fmt.value = 'opus';
+    } else if (musicItag === '141' || musicItag === '140') {
+      fmt.value = 'm4a';
+    }
+
+    const selectedOpt = sel.options[sel.selectedIndex];
+    const label = selectedOpt?.textContent || '';
+    btn.textContent = `DOWNLOAD — ${label.split('(')[0].trim()}`;
+  }
+
+  function renderYtMode(data) {
+    document.getElementById('ytMode').style.display = 'block';
+    document.getElementById('musicMode').style.display = 'none';
+    document.getElementById('formatCardLabel').textContent = 'Format';
+
+    ytVideoFormats = data.videoFormats || [];
+    ytAudioFormats = data.audioFormats || [];
+
+    const vq = document.getElementById('ytVideoQuality');
+    vq.innerHTML = ytVideoFormats.length
+      ? ytVideoFormats.map(f => `<option value="${f.format_id}">${f.label}</option>`).join('')
+      : '<option value="bestvideo">Best Available</option>';
+
+    const ab = document.getElementById('ytAudioBitrate');
+    ab.innerHTML = ytAudioFormats.length
+      ? ytAudioFormats.map(f => `<option value="${f.format_id}">${f.label}</option>`).join('')
+      : '<option value="bestaudio">Best Available</option>';
+  }
+
+  // ── YT MODE TOGGLE ──
+  function setMode(mode) {
+    currentMode = mode;
+    document.getElementById('modeVideo').classList.toggle('active', mode === 'video');
+    document.getElementById('modeAudio').classList.toggle('active', mode === 'audio');
+    document.getElementById('ytVideoGroup').style.display = mode === 'video' ? 'block' : 'none';
+    document.getElementById('ytAudioGroup').style.display = mode === 'audio' ? 'block' : 'none';
+  }
+
+  // ── MUSIC DOWNLOAD ──
+  async function doMusicDownload() {
+    const url = document.getElementById('urlInput').value.trim();
+    const btn = document.getElementById('musicDlBtn');
+    const outputFmt = document.getElementById('musicFormatSelect').value;
+    const originalLabel = btn.textContent;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span>DOWNLOADING...';
+    resetProgress();
+
+    try {
+      const res = await fetch('/api/ytmusic', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, itag: musicItag, outputFormat: outputFmt })
+      });
+      const { jobId } = await res.json();
+      if (!jobId) return;
+      await pollJob(jobId, '~/Downloads/ytdl/YouTube Music/');
+    } catch(e) { addLog('Error: ' + e.message, 'error'); }
+    finally { btn.disabled = false; btn.textContent = originalLabel; }
+  }
+
+  // ── YT DOWNLOAD ──
+  async function doYtDownload() {
+    const url = document.getElementById('urlInput').value.trim();
+    const btn = document.getElementById('ytDlBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span>DOWNLOADING...';
+    resetProgress();
+
+    const audioOnly = currentMode === 'audio';
+    const videoFormat = document.getElementById('ytVideoQuality').value;
+    const audioSourceFormat = document.getElementById('ytAudioBitrate').value;
+    const audioOutputFormat = document.getElementById('ytAudioOutput').value;
+
+    try {
+      const res = await fetch('/api/download', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, audioOnly, videoFormat: audioOnly ? null : videoFormat, audioSourceFormat: audioOnly ? audioSourceFormat : null, audioOutputFormat: audioOnly ? audioOutputFormat : null })
+      });
+      const { jobId } = await res.json();
+      if (!jobId) return;
+      await pollJob(jobId, '~/Downloads/ytdl/');
+    } catch(e) { addLog('Error: ' + e.message, 'error'); }
+    finally { btn.disabled = false; btn.textContent = 'DOWNLOAD'; }
+  }
+
+  // ── POLLING ──
+  function resetProgress() {
+    document.getElementById('progressWrap').classList.add('show');
+    document.getElementById('console').classList.add('show');
+    document.getElementById('doneBanner').classList.remove('show');
+    document.getElementById('console').innerHTML = '';
+    setProgress(0, 'Starting...', '', '', '');
+  }
+
+  async function pollJob(jobId, saveDir) {
+    let lastLogCount = 0;
+    await new Promise(resolve => {
+      const poll = setInterval(async () => {
+        try {
+          const job = await fetch(`/api/job/${jobId}`).then(r => r.json());
+          job.logs.slice(lastLogCount).forEach(l => addLog(l));
+          lastLogCount = job.logs.length;
+
+          if (job.percent > 0) setProgress(job.percent, job.statusMsg, job.speed, job.eta, job.size);
+          else if (job.statusMsg) document.getElementById('progressLabel').textContent = job.statusMsg;
+
+          if (job.status === 'done') {
+            clearInterval(poll);
+            setProgress(100, 'Complete!', '', '', '');
+            const banner = document.getElementById('doneBanner');
+            banner.innerHTML = `✓ Saved to <strong style="margin-left:4px;">${saveDir}</strong>`;
+            banner.classList.add('show');
+            resolve();
+          } else if (job.status === 'error') {
+            clearInterval(poll);
+            addLog(job.error || 'Download failed', 'error');
+            resolve();
+          }
+        } catch(e) { clearInterval(poll); resolve(); }
+      }, 600);
+    });
+  }
+
+  function setProgress(pct, label, speed, eta, size) {
+    document.getElementById('progressFill').style.width = pct + '%';
+    document.getElementById('progressPct').textContent = Math.round(pct) + '%';
+    if (label) document.getElementById('progressLabel').textContent = label;
+    if (speed) document.getElementById('progressSpeed').textContent = speed;
+    if (eta) document.getElementById('progressEta').textContent = 'ETA: ' + eta;
+    if (size) document.getElementById('progressSize').textContent = size;
+  }
+
+  function addLog(msg, type = '') {
+    const wrap = document.getElementById('console');
+    const line = document.createElement('div');
+    line.className = 'log-line ' + type;
+    line.textContent = msg;
+    wrap.appendChild(line);
+    wrap.scrollTop = wrap.scrollHeight;
+  }
+
+  function fmtDur(secs) {
+    const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60), s = secs % 60;
+    if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    return `${m}:${String(s).padStart(2,'0')}`;
+  }
+
+  document.getElementById('urlInput').addEventListener('keydown', e => { if (e.key === 'Enter') doFetch(); });
+
+  checkStatus();
+</script>
+</body>
+</html>
