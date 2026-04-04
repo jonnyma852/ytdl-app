@@ -73,6 +73,51 @@ process.on('SIGINT', () => process.exit());
 process.on('SIGTERM', () => process.exit());
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Resolve the correct --cookies-from-browser argument for a given browser key.
+// Arc stores its profile under a non-standard path, so we must pass the profile
+// directory explicitly: chrome:PATH  (yt-dlp supports this since 2023.03+)
+function resolveBrowserArg(browserKey) {
+  if (browserKey === 'arc') {
+    // Arc profile is at ~/Library/Application Support/Arc/User Data/Default
+    const arcProfile = path.join(
+      os.homedir(),
+      'Library/Application Support/Arc/User Data'
+    );
+    if (fs.existsSync(arcProfile)) {
+      return `chrome:${arcProfile}`;
+    }
+    // Fallback: Arc without explicit path (may not work but worth trying)
+    console.warn('[cookies] Arc profile not found at expected path, falling back to bare "chrome"');
+    return 'chrome';
+  }
+  // All other browsers use their standard yt-dlp name
+  return browserKey;
+}
+
+// Inspect a Netscape-format cookies.txt and return which key Premium cookies are present.
+// Returns { total, premiumCookies: string[], hasPremium: bool }
+function auditCookies(cookiesPath) {
+  if (!fs.existsSync(cookiesPath)) return { total: 0, premiumCookies: [], hasPremium: false };
+  const lines = fs.readFileSync(cookiesPath, 'utf8').split('\n').filter(l => l && !l.startsWith('#'));
+  const PREMIUM_KEYS = [
+    '__Secure-3PSID',
+    '__Secure-3PAPISID',
+    'SAPISID',
+    'SSID',
+    'SID',
+  ];
+  const found = [];
+  for (const line of lines) {
+    const parts = line.split('\t');
+    if (parts.length >= 7) {
+      const name = parts[5];
+      if (PREMIUM_KEYS.includes(name) && !found.includes(name)) found.push(name);
+    }
+  }
+  const hasPremium = found.includes('__Secure-3PSID') || found.includes('__Secure-3PAPISID');
+  return { total: lines.length, premiumCookies: found, hasPremium };
+}
+
 // GET /api/status
 app.get('/api/status', (req, res) => {
   let ytdlpVersion = null;
@@ -89,35 +134,62 @@ app.get('/api/status', (req, res) => {
 
 // POST /api/refresh-cookies — extract cookies from browser store via yt-dlp
 app.post('/api/refresh-cookies', (req, res) => {
-  const browserName = req.body.browser || 'chrome'; // Arc shares Chrome's cookie store
+  const browserKey = req.body.browser || 'arc';
+  const browserArg = resolveBrowserArg(browserKey);
   const bin = YTDLP();
+
+  console.log(`[cookies] Extracting from browser arg: ${browserArg}`);
 
   // Ensure output directory exists
   const dir = path.dirname(COOKIES_PATH);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-  // yt-dlp --cookies-from-browser reads the live browser cookie DB and writes
-  // it to the file specified by --cookies. We use --skip-download so it doesn't
-  // actually fetch the video — just extracts cookies and exits.
-  const proc = spawn(bin, [
-    '--cookies-from-browser', browserName,
+  // Remove existing cookies file first so we can detect a clean write
+  try { if (fs.existsSync(COOKIES_PATH)) fs.unlinkSync(COOKIES_PATH); } catch {}
+
+  const args = [
+    '--cookies-from-browser', browserArg,
     '--cookies', COOKIES_PATH,
     '--skip-download',
     '--quiet',
     'https://music.youtube.com/watch?v=dQw4w9WgXcQ',
-  ], { env: ENV });
+  ];
+
+  console.log(`[cookies] Running: ${bin} ${args.join(' ')}`);
+  const proc = spawn(bin, args, { env: ENV });
 
   let stderr = '';
-  proc.stderr.on('data', d => stderr += d);
-  proc.on('close', () => {
-    if (fs.existsSync(COOKIES_PATH)) {
-      const lines = fs.readFileSync(COOKIES_PATH, 'utf8')
-        .split('\n').filter(l => l && !l.startsWith('#')).length;
-      if (lines > 0) return res.json({ ok: true, cookieCount: lines });
+  proc.stderr.on('data', d => { stderr += d; process.stderr.write(d); });
+  proc.stdout.on('data', d => process.stdout.write(d));
+
+  proc.on('close', (code) => {
+    console.log(`[cookies] yt-dlp exited with code ${code}`);
+    if (!fs.existsSync(COOKIES_PATH)) {
+      return res.status(500).json({
+        ok: false,
+        error: (stderr.trim() || 'No cookies file written.') +
+          '\n\nTip: Make sure you are logged into music.youtube.com in your browser and the browser is fully closed or unlocked.',
+      });
     }
-    res.status(500).json({
-      ok: false,
-      error: stderr.trim() || 'No cookies written — make sure you are logged into music.youtube.com in your browser',
+
+    const audit = auditCookies(COOKIES_PATH);
+    console.log(`[cookies] Audit: total=${audit.total} premiumCookies=${audit.premiumCookies.join(',')} hasPremium=${audit.hasPremium}`);
+
+    if (audit.total === 0) {
+      return res.status(500).json({
+        ok: false,
+        error: 'Cookies file was written but contains no cookie entries.\n\nMake sure you are logged into music.youtube.com in your browser.',
+      });
+    }
+
+    return res.json({
+      ok: true,
+      cookieCount: audit.total,
+      premiumCookies: audit.premiumCookies,
+      hasPremium: audit.hasPremium,
+      warning: !audit.hasPremium
+        ? 'Premium session cookies (__Secure-3PSID / __Secure-3PAPISID) were NOT found. 256kbps will not be available. Make sure you are logged into YouTube Premium in your browser.'
+        : null,
     });
   });
 });
