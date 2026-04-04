@@ -26,17 +26,13 @@
       --sans: 'Syne', sans-serif;
       --r: 8px;
     }
-
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
-
     body::before {
-      content: '';
-      position: fixed; inset: 0;
+      content: ''; position: fixed; inset: 0;
       background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
       pointer-events: none; z-index: 999; opacity: 0.6;
     }
-
     .app { position: relative; z-index: 1; max-width: 720px; margin: 0 auto; padding: 56px 20px 80px; }
 
     /* Header */
@@ -48,32 +44,41 @@
     h1 .accent { color: var(--gold); }
     .tagline { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-top: 10px; letter-spacing: 0.04em; }
 
-    /* Status pills */
-    .status-row { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; animation: up 0.5s 0.05s ease both; }
+    /* Status row */
+    .status-row { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; animation: up 0.5s 0.05s ease both; align-items: center; }
     .pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 100px; font-family: var(--mono); font-size: 10px; color: var(--text-dim); background: var(--surface); }
     .pill .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
     .pill.ok .dot { background: var(--green); box-shadow: 0 0 5px var(--green); }
     .pill.warn .dot { background: var(--gold); }
     .pill.err .dot { background: var(--red); }
 
+    /* Action buttons in status row */
+    .status-actions { display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; animation: up 0.5s 0.08s ease both; }
+    .btn-action {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 14px; border-radius: 100px;
+      font-family: var(--mono); font-size: 10px; font-weight: 700;
+      letter-spacing: 0.05em; cursor: pointer; border: 1px solid var(--border2);
+      background: var(--surface); color: var(--text-dim);
+      transition: all 0.15s;
+    }
+    .btn-action:hover { border-color: var(--gold-dim); color: var(--gold); }
+    .btn-action:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-action.running { border-color: var(--green); color: var(--green); }
+    .btn-action.success { border-color: var(--green); color: var(--green); background: rgba(82,201,122,0.08); }
+    .btn-action.fail { border-color: var(--red); color: var(--red); }
+
     /* Card */
     .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 24px; margin-bottom: 14px; animation: up 0.5s ease both; }
     .card-label { font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 12px; }
 
-    /* URL input */
+    /* Inputs */
     .url-row { display: flex; gap: 8px; }
-    input[type="text"] {
-      flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
-      color: var(--text); font-family: var(--mono); font-size: 12px; padding: 11px 14px;
-      outline: none; transition: border-color 0.15s, box-shadow 0.15s;
-    }
+    input[type="text"] { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: var(--mono); font-size: 12px; padding: 11px 14px; outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
     input[type="text"]:focus { border-color: var(--gold-dim); box-shadow: 0 0 0 3px var(--gold-glow); }
     input[type="text"]::placeholder { color: var(--text-muted); }
-
-    /* Music URL highlight */
     input.is-music { border-color: var(--blue) !important; box-shadow: 0 0 0 3px rgba(82,153,201,0.12) !important; }
 
-    /* Buttons */
     button { font-family: var(--sans); font-weight: 700; cursor: pointer; border: none; border-radius: 6px; transition: all 0.15s; }
     .btn-gold { background: var(--gold); color: #080809; padding: 11px 20px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; flex-shrink: 0; }
     .btn-gold:hover { background: #dbb95a; transform: translateY(-1px); }
@@ -90,34 +95,16 @@
     .preview-title { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 5px; }
     .preview-details { font-family: var(--mono); font-size: 10px; color: var(--text-dim); }
 
-    /* Music quality badge */
-    .quality-badge {
-      display: none; align-items: center; gap: 10px;
-      padding: 10px 14px; border-radius: 6px; font-size: 12px; font-weight: 700;
-      margin-bottom: 12px;
-    }
+    /* Quality badge */
+    .quality-badge { display: none; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 6px; font-size: 12px; font-weight: 700; margin-bottom: 12px; }
     .quality-badge.show { display: flex; }
     .quality-badge.has256 { background: rgba(82,201,122,0.08); border: 1px solid rgba(82,201,122,0.25); color: var(--green); }
     .quality-badge.no256 { background: rgba(201,168,76,0.08); border: 1px solid rgba(201,168,76,0.25); color: var(--gold); }
 
-    /* Format pills row */
-    .format-pills { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
-    .format-pill {
-      padding: 4px 10px; border-radius: 100px; font-family: var(--mono); font-size: 10px; font-weight: 700;
-      border: 1px solid var(--border); color: var(--text-dim); background: var(--surface2);
-    }
-    .format-pill.best { border-color: rgba(82,201,122,0.35); color: var(--green); background: rgba(82,201,122,0.06); }
-
-    /* YT format selects */
+    /* Selects */
     .fmt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
     .fmt-group label { display: block; font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px; }
-    select {
-      width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
-      color: var(--text); font-family: var(--mono); font-size: 12px; padding: 10px 12px;
-      outline: none; cursor: pointer; appearance: none;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236e6c67'/%3E%3C/svg%3E");
-      background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px;
-    }
+    select { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: var(--mono); font-size: 12px; padding: 10px 12px; outline: none; cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236e6c67'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
 
     /* Mode toggle */
     .mode-toggle { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 14px; background: var(--surface2); }
@@ -149,7 +136,7 @@
     .done-banner.show { display: flex; }
 
     /* Spinner */
-    .spin { width: 12px; height: 12px; border: 2px solid var(--border2); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; vertical-align: middle; margin-right: 6px; }
+    .spin { width: 12px; height: 12px; border: 2px solid var(--border2); border-top-color: currentColor; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; vertical-align: middle; margin-right: 4px; }
 
     @keyframes spin { to { transform: rotate(360deg); } }
     @keyframes up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
@@ -171,28 +158,31 @@
     <p class="tagline">// paste any YouTube or YouTube Music link</p>
   </header>
 
-  <!-- Status -->
+  <!-- Status pills -->
   <div class="status-row">
     <div class="pill" id="pillYtdlp"><span class="dot"></span><span id="pillYtdlpTxt">checking...</span></div>
     <div class="pill" id="pillBgutil"><span class="dot"></span><span id="pillBgutilTxt">bgutil...</span></div>
-    <div class="pill" id="pillCookies" onclick="toggleCookiesCard()" style="cursor:pointer;" title="Click for cookie refresh instructions"><span class="dot"></span><span id="pillCookiesTxt">cookies...</span></div>
+    <div class="pill" id="pillCookies"><span class="dot"></span><span id="pillCookiesTxt">cookies...</span></div>
   </div>
 
-  <!-- Cookies info -->
-  <div class="card" id="cookiesCard" style="display:none;">
-    <div class="card-label">YouTube Music Cookies</div>
-    <div style="font-family:var(--mono);font-size:11px;line-height:1.8;color:var(--text-dim);">
-      Cookies expire periodically. If 256kbps stops showing up, refresh them:<br><br>
-      <span style="color:var(--text);">1.</span> Open Arc → go to <strong style="color:var(--text);">music.youtube.com</strong> (logged in)<br>
-      <span style="color:var(--text);">2.</span> Click the <strong style="color:var(--text);">Open Cookies.txt</strong> extension → Export<br>
-      <span style="color:var(--text);">3.</span> Save the file, replacing:<br>
-      <code style="display:block;margin-top:6px;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;font-size:10px;color:var(--gold);user-select:all;cursor:pointer;" onclick="navigator.clipboard.writeText(this.textContent)">~/Documents/SANDBOX/ytdl-app/cookies.txt</code>
-      <span style="display:block;margin-top:6px;font-size:10px;">(click path above to copy)</span>
-    </div>
-    <button onclick="document.getElementById('cookiesCard').style.display='none'" style="margin-top:14px;background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);padding:7px 14px;font-size:11px;font-family:var(--sans);font-weight:700;border-radius:6px;cursor:pointer;">Dismiss</button>
+  <!-- Action buttons -->
+  <div class="status-actions">
+    <button class="btn-action" id="btnBgutil" onclick="startBgutil()">
+      ▶ Start bgutil
+    </button>
+    <button class="btn-action" id="btnCookies" onclick="refreshCookies()">
+      ↻ Refresh Cookies
+    </button>
+    <select id="browserSelect" style="background:var(--surface2);border:1px solid var(--border);border-radius:100px;color:var(--text-dim);font-family:var(--mono);font-size:10px;padding:5px 10px;outline:none;cursor:pointer;height:28px;">
+      <option value="chrome">Arc / Chrome</option>
+      <option value="firefox">Firefox</option>
+      <option value="safari">Safari</option>
+      <option value="edge">Edge</option>
+      <option value="chromium">Chromium</option>
+    </select>
   </div>
 
-  <!-- Main Card -->
+  <!-- Main card -->
   <div class="card">
     <div class="card-label">Paste Link</div>
     <div class="url-row">
@@ -201,11 +191,10 @@
     </div>
   </div>
 
-  <!-- Format Card — shown after fetch -->
+  <!-- Format card -->
   <div class="card" id="formatCard" style="display:none;">
     <div class="card-label" id="formatCardLabel">Format</div>
 
-    <!-- Preview -->
     <div class="preview" id="preview">
       <div class="thumb"><img id="thumbImg" src="" alt="" /></div>
       <div class="preview-meta">
@@ -214,11 +203,9 @@
       </div>
     </div>
 
-    <!-- ── MUSIC MODE ── -->
+    <!-- Music mode -->
     <div id="musicMode" style="display:none;">
       <div class="quality-badge" id="qualityBadge"></div>
-
-      <!-- Quality selector — shown after fetch -->
       <div id="musicQualityRow" style="display:none; margin-bottom:14px;">
         <div class="fmt-grid">
           <div class="fmt-group">
@@ -235,11 +222,10 @@
           </div>
         </div>
       </div>
-
       <button class="btn-gold btn-full" id="musicDlBtn" onclick="doMusicDownload()">DOWNLOAD</button>
     </div>
 
-    <!-- ── YT MODE ── -->
+    <!-- YT mode -->
     <div id="ytMode" style="display:none;">
       <div class="mode-toggle">
         <button class="mode-btn active" id="modeVideo" onclick="setMode('video')">▶ Video + Audio</button>
@@ -269,7 +255,7 @@
       <button class="btn-gold btn-full" id="ytDlBtn" onclick="doYtDownload()">DOWNLOAD</button>
     </div>
 
-    <!-- Progress (shared) -->
+    <!-- Progress -->
     <div class="progress-wrap" id="progressWrap">
       <hr />
       <div class="progress-header">
@@ -291,36 +277,109 @@
 
 <script>
   let currentMode = 'video';
-  let currentIsMusic = false;
   let musicItag = '141';
-  let ytVideoFormats = [], ytAudioFormats = [];
 
   // ── STATUS ──
   async function checkStatus() {
     try {
       const d = await fetch('/api/status').then(r => r.json());
       setPill('pillYtdlp', d.ytdlp?.available, d.ytdlp?.version || 'yt-dlp missing');
-      setPill('pillBgutil', d.bgutil, d.bgutil ? 'bgutil ✓' : 'bgutil offline');
-      setPill('pillCookies', d.cookies, d.cookies ? 'cookies ✓' : 'no cookies ⓘ');
-      if (!d.cookies) document.getElementById('cookiesCard').style.display = 'block';
-    } catch {}
-  }
 
-  function toggleCookiesCard() {
-    const card = document.getElementById('cookiesCard');
-    card.style.display = card.style.display === 'none' ? 'block' : 'none';
+      // bgutil pill + button state
+      setPill('pillBgutil', d.bgutil, d.bgutil ? 'bgutil ✓' : 'bgutil offline');
+      const btnBg = document.getElementById('btnBgutil');
+      if (d.bgutil) {
+        btnBg.textContent = '✓ bgutil running';
+        btnBg.className = 'btn-action running';
+        btnBg.disabled = true;
+      } else {
+        btnBg.innerHTML = '▶ Start bgutil';
+        btnBg.className = 'btn-action';
+        btnBg.disabled = false;
+      }
+
+      // Cookies pill
+      if (d.cookies) {
+        const age = d.cookiesAge !== null ? ` · ${d.cookiesAge}h old` : '';
+        setPill('pillCookies', d.cookiesAge < 48, `cookies ✓${age}`);
+      } else {
+        setPill('pillCookies', false, 'no cookies');
+      }
+    } catch {}
   }
 
   function setPill(id, ok, text) {
     const el = document.getElementById(id);
-    el.classList.remove('ok','warn','err');
+    el.classList.remove('ok', 'warn', 'err');
     el.classList.add(ok ? 'ok' : 'err');
     el.querySelector('span:last-child').textContent = text;
   }
 
+  // ── START BGUTIL ──
+  async function startBgutil() {
+    const btn = document.getElementById('btnBgutil');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span>Starting...';
+    btn.className = 'btn-action';
+
+    try {
+      const res = await fetch('/api/start-bgutil', { method: 'POST' });
+      const data = await res.json();
+      if (data.ok) {
+        btn.textContent = '✓ bgutil running';
+        btn.className = 'btn-action running';
+        btn.disabled = true;
+        setPill('pillBgutil', true, 'bgutil ✓');
+      } else {
+        btn.textContent = '✗ Failed — check terminal';
+        btn.className = 'btn-action fail';
+        btn.disabled = false;
+        setTimeout(() => { btn.innerHTML = '▶ Start bgutil'; btn.className = 'btn-action'; }, 3000);
+      }
+    } catch(e) {
+      btn.textContent = '✗ Error';
+      btn.className = 'btn-action fail';
+      btn.disabled = false;
+      setTimeout(() => { btn.innerHTML = '▶ Start bgutil'; btn.className = 'btn-action'; }, 3000);
+    }
+  }
+
+  // ── REFRESH COOKIES ──
+  async function refreshCookies() {
+    const btn = document.getElementById('btnCookies');
+    const browser = document.getElementById('browserSelect').value;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span>Extracting...';
+    btn.className = 'btn-action';
+
+    try {
+      const res = await fetch('/api/refresh-cookies', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ browser })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        btn.textContent = `✓ ${data.cookieCount} cookies saved`;
+        btn.className = 'btn-action success';
+        setPill('pillCookies', true, 'cookies ✓ fresh');
+        setTimeout(() => { btn.innerHTML = '↻ Refresh Cookies'; btn.className = 'btn-action'; btn.disabled = false; }, 3000);
+      } else {
+        btn.textContent = '✗ Failed';
+        btn.className = 'btn-action fail';
+        btn.disabled = false;
+        alert('Cookie extraction failed:\n\n' + (data.error || 'Unknown error') + '\n\nMake sure you are logged into music.youtube.com in your browser.');
+        setTimeout(() => { btn.innerHTML = '↻ Refresh Cookies'; btn.className = 'btn-action'; }, 2000);
+      }
+    } catch(e) {
+      btn.textContent = '✗ Error';
+      btn.className = 'btn-action fail';
+      btn.disabled = false;
+      setTimeout(() => { btn.innerHTML = '↻ Refresh Cookies'; btn.className = 'btn-action'; }, 2000);
+    }
+  }
+
   // ── URL detection ──
   function isYTMusic(url) { return url.includes('music.youtube.com'); }
-
   document.getElementById('urlInput').addEventListener('input', function() {
     this.classList.toggle('is-music', isYTMusic(this.value));
   });
@@ -329,12 +388,9 @@
   async function doFetch() {
     const url = document.getElementById('urlInput').value.trim();
     if (!url) return;
-
     const btn = document.getElementById('fetchBtn');
     btn.disabled = true;
     btn.innerHTML = '<span class="spin"></span>Fetching';
-
-    // Reset
     document.getElementById('formatCard').style.display = 'none';
     document.getElementById('doneBanner').classList.remove('show');
     document.getElementById('progressWrap').classList.remove('show');
@@ -342,45 +398,23 @@
     document.getElementById('console').innerHTML = '';
 
     try {
-      const res = await fetch('/api/fetch', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url })
-      });
+      const res = await fetch('/api/fetch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
       const data = await res.json();
       if (!res.ok) { alert(data.error || 'Fetch failed'); return; }
 
-      currentIsMusic = data.isMusic;
-
-      // Preview
-      if (data.thumbnail) {
-        document.getElementById('thumbImg').src = data.thumbnail;
-        document.getElementById('preview').classList.add('show');
-      } else {
-        document.getElementById('preview').classList.remove('show');
-      }
+      if (data.thumbnail) { document.getElementById('thumbImg').src = data.thumbnail; document.getElementById('preview').classList.add('show'); }
+      else { document.getElementById('preview').classList.remove('show'); }
       document.getElementById('previewTitle').textContent = data.title || '—';
       const dur = data.duration ? fmtDur(data.duration) : '';
       document.getElementById('previewDetails').textContent = [dur, data.uploader].filter(Boolean).join(' · ');
 
-      if (data.isMusic) {
-        renderMusicMode(data);
-      } else {
-        renderYtMode(data);
-      }
-
+      if (data.isMusic) renderMusicMode(data); else renderYtMode(data);
       document.getElementById('formatCard').style.display = 'block';
     } catch(e) { alert('Error: ' + e.message); }
     finally { btn.disabled = false; btn.textContent = 'Fetch'; }
   }
 
-  // Music quality options for playlists/albums (no format check done)
-  const PLAYLIST_QUALITY_OPTIONS = [
-    { id: '141', label: '256kbps AAC (best, if available)', kbps: 256 },
-    { id: '140', label: '128kbps AAC', kbps: 128 },
-    { id: '774', label: '256kbps Opus (if available)', kbps: 256 },
-    { id: 'bestaudio', label: 'Best available', kbps: 0 },
-  ];
-
+  // ── MUSIC MODE ──
   function renderMusicMode(data) {
     document.getElementById('musicMode').style.display = 'block';
     document.getElementById('ytMode').style.display = 'none';
@@ -390,25 +424,19 @@
     const dlBtn = document.getElementById('musicDlBtn');
     const qualityRow = document.getElementById('musicQualityRow');
     const qualitySelect = document.getElementById('musicQualitySelect');
-
     qualityRow.style.display = 'block';
     qualitySelect.innerHTML = '';
 
     if (data.isPlaylist) {
-      // Show 256kbps status based on first-track check
-      if (data.has256 === true) {
-        badge.className = 'quality-badge show has256';
-        badge.innerHTML = `♫ Album / Playlist — 256kbps available (${data.bestKbps}kbps on first track)`;
-      } else if (data.has256 === false) {
-        badge.className = 'quality-badge show no256';
-        badge.innerHTML = `♫ Album / Playlist — 256kbps not available, best is ${data.bestKbps}kbps`;
-      } else {
-        badge.className = 'quality-badge show no256';
-        badge.innerHTML = '♫ Album / Playlist';
-      }
-      // For playlists use preset options (or actual formats if available)
-      const qualityOpts = data.audioFormats?.length ? data.audioFormats : PLAYLIST_QUALITY_OPTIONS.map(o => ({ id: o.id, ext: 'm4a', kbps: o.kbps, label: o.label }));
-      qualityOpts.forEach(o => {
+      if (data.has256 === true) { badge.className = 'quality-badge show has256'; badge.innerHTML = `♫ Album / Playlist — 256kbps available (${data.bestKbps}kbps on first track)`; }
+      else if (data.has256 === false) { badge.className = 'quality-badge show no256'; badge.innerHTML = `♫ Album / Playlist — 256kbps not available, best is ${data.bestKbps}kbps`; }
+      else { badge.className = 'quality-badge show no256'; badge.innerHTML = '♫ Album / Playlist'; }
+      const opts = data.audioFormats?.length ? data.audioFormats : [
+        { id: '141', ext: 'm4a', kbps: 256, label: '256kbps AAC (if available)' },
+        { id: '140', ext: 'm4a', kbps: 128, label: '128kbps AAC' },
+        { id: 'bestaudio', ext: 'm4a', kbps: 0, label: 'Best available' },
+      ];
+      opts.forEach(o => {
         const opt = document.createElement('option');
         opt.value = o.id;
         opt.textContent = o.label || `${o.kbps}kbps ${(o.ext||'').toUpperCase()} (${o.id})`;
@@ -417,16 +445,8 @@
       });
       musicItag = data.bestItag || '141';
     } else {
-      // Single track — populate from actual available formats
-      if (data.has256) {
-        badge.className = 'quality-badge show has256';
-        badge.innerHTML = '✓ 256kbps available';
-      } else {
-        badge.className = 'quality-badge show no256';
-        badge.innerHTML = `⚠ 256kbps not available — best is ${data.bestKbps}kbps`;
-      }
-
-      // Populate quality selector from actual formats
+      if (data.has256) { badge.className = 'quality-badge show has256'; badge.innerHTML = '✓ 256kbps available'; }
+      else { badge.className = 'quality-badge show no256'; badge.innerHTML = `⚠ 256kbps not available — best is ${data.bestKbps}kbps`; }
       (data.audioFormats || []).forEach(f => {
         const opt = document.createElement('option');
         opt.value = f.id;
@@ -434,10 +454,8 @@
         if (f.id === data.bestItag) opt.selected = true;
         qualitySelect.appendChild(opt);
       });
-
       musicItag = data.bestItag;
     }
-
     onMusicQualityChange();
   }
 
@@ -446,39 +464,26 @@
     const fmt = document.getElementById('musicFormatSelect');
     const btn = document.getElementById('musicDlBtn');
     musicItag = sel.value;
-
-    // Auto-set output format based on selected itag
-    if (musicItag === '774') {
-      fmt.value = 'opus';
-    } else if (musicItag === '141' || musicItag === '140') {
-      fmt.value = 'm4a';
-    }
-
-    const selectedOpt = sel.options[sel.selectedIndex];
-    const label = selectedOpt?.textContent || '';
+    if (musicItag === '774') fmt.value = 'opus';
+    else if (musicItag === '141' || musicItag === '140') fmt.value = 'm4a';
+    const label = sel.options[sel.selectedIndex]?.textContent || '';
     btn.textContent = `DOWNLOAD — ${label.split('(')[0].trim()}`;
   }
 
+  // ── YT MODE ──
   function renderYtMode(data) {
     document.getElementById('ytMode').style.display = 'block';
     document.getElementById('musicMode').style.display = 'none';
     document.getElementById('formatCardLabel').textContent = 'Format';
-
-    ytVideoFormats = data.videoFormats || [];
-    ytAudioFormats = data.audioFormats || [];
-
-    const vq = document.getElementById('ytVideoQuality');
-    vq.innerHTML = ytVideoFormats.length
-      ? ytVideoFormats.map(f => `<option value="${f.format_id}">${f.label}</option>`).join('')
+    const vf = data.videoFormats || [], af = data.audioFormats || [];
+    document.getElementById('ytVideoQuality').innerHTML = vf.length
+      ? vf.map(f => `<option value="${f.format_id}">${f.label}</option>`).join('')
       : '<option value="bestvideo">Best Available</option>';
-
-    const ab = document.getElementById('ytAudioBitrate');
-    ab.innerHTML = ytAudioFormats.length
-      ? ytAudioFormats.map(f => `<option value="${f.format_id}">${f.label}</option>`).join('')
+    document.getElementById('ytAudioBitrate').innerHTML = af.length
+      ? af.map(f => `<option value="${f.format_id}">${f.label}</option>`).join('')
       : '<option value="bestaudio">Best Available</option>';
   }
 
-  // ── YT MODE TOGGLE ──
   function setMode(mode) {
     currentMode = mode;
     document.getElementById('modeVideo').classList.toggle('active', mode === 'video');
@@ -487,21 +492,16 @@
     document.getElementById('ytAudioGroup').style.display = mode === 'audio' ? 'block' : 'none';
   }
 
-  // ── MUSIC DOWNLOAD ──
+  // ── DOWNLOADS ──
   async function doMusicDownload() {
     const url = document.getElementById('urlInput').value.trim();
     const btn = document.getElementById('musicDlBtn');
     const outputFmt = document.getElementById('musicFormatSelect').value;
     const originalLabel = btn.textContent;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spin"></span>DOWNLOADING...';
+    btn.disabled = true; btn.innerHTML = '<span class="spin"></span>DOWNLOADING...';
     resetProgress();
-
     try {
-      const res = await fetch('/api/ytmusic', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, itag: musicItag, outputFormat: outputFmt })
-      });
+      const res = await fetch('/api/ytmusic', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, itag: musicItag, outputFormat: outputFmt }) });
       const { jobId } = await res.json();
       if (!jobId) return;
       await pollJob(jobId, '~/Downloads/ytdl/YouTube Music/');
@@ -509,24 +509,14 @@
     finally { btn.disabled = false; btn.textContent = originalLabel; }
   }
 
-  // ── YT DOWNLOAD ──
   async function doYtDownload() {
     const url = document.getElementById('urlInput').value.trim();
     const btn = document.getElementById('ytDlBtn');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spin"></span>DOWNLOADING...';
+    btn.disabled = true; btn.innerHTML = '<span class="spin"></span>DOWNLOADING...';
     resetProgress();
-
     const audioOnly = currentMode === 'audio';
-    const videoFormat = document.getElementById('ytVideoQuality').value;
-    const audioSourceFormat = document.getElementById('ytAudioBitrate').value;
-    const audioOutputFormat = document.getElementById('ytAudioOutput').value;
-
     try {
-      const res = await fetch('/api/download', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, audioOnly, videoFormat: audioOnly ? null : videoFormat, audioSourceFormat: audioOnly ? audioSourceFormat : null, audioOutputFormat: audioOnly ? audioOutputFormat : null })
-      });
+      const res = await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, audioOnly, videoFormat: audioOnly ? null : document.getElementById('ytVideoQuality').value, audioSourceFormat: audioOnly ? document.getElementById('ytAudioBitrate').value : null, audioOutputFormat: audioOnly ? document.getElementById('ytAudioOutput').value : null }) });
       const { jobId } = await res.json();
       if (!jobId) return;
       await pollJob(jobId, '~/Downloads/ytdl/');
@@ -551,21 +541,17 @@
           const job = await fetch(`/api/job/${jobId}`).then(r => r.json());
           job.logs.slice(lastLogCount).forEach(l => addLog(l));
           lastLogCount = job.logs.length;
-
           if (job.percent > 0) setProgress(job.percent, job.statusMsg, job.speed, job.eta, job.size);
           else if (job.statusMsg) document.getElementById('progressLabel').textContent = job.statusMsg;
-
           if (job.status === 'done') {
             clearInterval(poll);
             setProgress(100, 'Complete!', '', '', '');
-            const banner = document.getElementById('doneBanner');
-            banner.innerHTML = `✓ Saved to <strong style="margin-left:4px;">${saveDir}</strong>`;
-            banner.classList.add('show');
+            const b = document.getElementById('doneBanner');
+            b.innerHTML = `✓ Saved to <strong style="margin-left:4px;">${saveDir}</strong>`;
+            b.classList.add('show');
             resolve();
           } else if (job.status === 'error') {
-            clearInterval(poll);
-            addLog(job.error || 'Download failed', 'error');
-            resolve();
+            clearInterval(poll); addLog(job.error || 'Failed', 'error'); resolve();
           }
         } catch(e) { clearInterval(poll); resolve(); }
       }, 600);
@@ -599,6 +585,8 @@
   document.getElementById('urlInput').addEventListener('keydown', e => { if (e.key === 'Enter') doFetch(); });
 
   checkStatus();
+  // Re-check status every 10s to keep bgutil pill live
+  setInterval(checkStatus, 10000);
 </script>
 </body>
 </html>
