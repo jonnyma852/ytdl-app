@@ -31,30 +31,19 @@
     h1 .accent { color: var(--gold); }
     .tagline { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-top: 10px; letter-spacing: 0.04em; }
 
-    /* Status */
     .status-row { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; animation: up 0.5s 0.05s ease both; align-items: center; }
     .pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 100px; font-family: var(--mono); font-size: 10px; color: var(--text-dim); background: var(--surface); }
     .pill .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
     .pill.ok .dot { background: var(--green); box-shadow: 0 0 5px var(--green); }
     .pill.err .dot { background: var(--red); }
 
-    /* Cookie refresh row */
-    .status-actions { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; animation: up 0.5s 0.08s ease both; align-items: center; }
+    .status-actions { display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; animation: up 0.5s 0.08s ease both; align-items: center; }
     .btn-action { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 100px; font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.05em; cursor: pointer; border: 1px solid var(--border2); background: var(--surface); color: var(--text-dim); transition: all 0.15s; }
     .btn-action:hover { border-color: var(--gold-dim); color: var(--gold); }
     .btn-action:disabled { opacity: 0.4; cursor: not-allowed; }
     .btn-action.success { border-color: var(--green); color: var(--green); background: rgba(82,201,122,0.08); }
-    .btn-action.success-warn { border-color: var(--gold); color: var(--gold); background: rgba(201,168,76,0.08); }
     .btn-action.fail { border-color: var(--red); color: var(--red); }
 
-    /* Cookie audit banner */
-    .cookie-audit { display: none; font-family: var(--mono); font-size: 10px; padding: 8px 12px; border-radius: 6px; margin-bottom: 14px; line-height: 1.6; }
-    .cookie-audit.show { display: block; }
-    .cookie-audit.ok { background: rgba(82,201,122,0.07); border: 1px solid rgba(82,201,122,0.2); color: var(--green); }
-    .cookie-audit.warn { background: rgba(201,168,76,0.07); border: 1px solid rgba(201,168,76,0.2); color: var(--gold); }
-    .cookie-audit.err { background: rgba(201,82,82,0.07); border: 1px solid rgba(201,82,82,0.2); color: var(--red); }
-
-    /* Card */
     .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 24px; margin-bottom: 14px; animation: up 0.5s ease both; }
     .card-label { font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 12px; }
     .url-row { display: flex; gap: 8px; }
@@ -132,19 +121,16 @@
     <p class="tagline">// paste any YouTube or YouTube Music link</p>
   </header>
 
-  <!-- Status pills -->
   <div class="status-row">
     <div class="pill" id="pillYtdlp"><span class="dot"></span><span id="pillYtdlpTxt">checking...</span></div>
     <div class="pill" id="pillBgutil"><span class="dot"></span><span id="pillBgutilTxt">bgutil...</span></div>
     <div class="pill" id="pillCookies"><span class="dot"></span><span id="pillCookiesTxt">cookies...</span></div>
   </div>
 
-  <!-- Cookie refresh -->
   <div class="status-actions">
     <button class="btn-action" id="btnCookies" onclick="refreshCookies()">↻ Refresh Cookies</button>
     <select id="browserSelect" style="background:var(--surface2);border:1px solid var(--border);border-radius:100px;color:var(--text-dim);font-family:var(--mono);font-size:10px;padding:5px 10px;outline:none;cursor:pointer;height:28px;">
-      <option value="arc">Arc (recommended)</option>
-      <option value="chrome">Chrome</option>
+      <option value="chrome">Arc / Chrome</option>
       <option value="firefox">Firefox</option>
       <option value="safari">Safari</option>
       <option value="edge">Edge</option>
@@ -152,10 +138,6 @@
     </select>
   </div>
 
-  <!-- Cookie audit result -->
-  <div class="cookie-audit" id="cookieAudit"></div>
-
-  <!-- Main card -->
   <div class="card">
     <div class="card-label">Paste Link</div>
     <div class="url-row">
@@ -164,7 +146,6 @@
     </div>
   </div>
 
-  <!-- Format card -->
   <div class="card" id="formatCard" style="display:none;">
     <div class="card-label" id="formatCardLabel">Format</div>
 
@@ -262,52 +243,26 @@
 
   async function refreshCookies() {
     const btn = document.getElementById('btnCookies');
-    const audit = document.getElementById('cookieAudit');
     const browser = document.getElementById('browserSelect').value;
     btn.disabled = true;
     btn.innerHTML = '<span class="spin"></span>Extracting...';
-    audit.className = 'cookie-audit';
-    audit.textContent = '';
     try {
       const res = await fetch('/api/refresh-cookies', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ browser }) });
       const data = await res.json();
       if (data.ok) {
-        if (data.hasPremium) {
-          // Got real Premium session cookies
-          btn.textContent = `✓ ${data.cookieCount} cookies — Premium ✓`;
-          btn.className = 'btn-action success';
-          setPill('pillCookies', true, 'cookies ✓ fresh');
-          audit.className = 'cookie-audit show ok';
-          audit.innerHTML = `✓ Premium session cookies found: ${data.premiumCookies.join(', ')}<br>256kbps should be available — click Fetch on a track to confirm.`;
-        } else {
-          // Cookies written but no Premium tokens
-          btn.textContent = `⚠ ${data.cookieCount} cookies — no Premium`;
-          btn.className = 'btn-action success-warn';
-          setPill('pillCookies', false, 'cookies — no Premium');
-          audit.className = 'cookie-audit show warn';
-          audit.innerHTML = `⚠ ${data.cookieCount} cookies saved but Premium session tokens not found.<br>`
-            + `Found: ${data.premiumCookies.length ? data.premiumCookies.join(', ') : 'none'}<br>`
-            + `Missing: __Secure-3PSID, __Secure-3PAPISID<br><br>`
-            + `Make sure you are <strong>logged into YouTube Premium</strong> in Arc and the tab is open, then try again.<br>`
-            + `If it still fails, use the <strong>"Open Cookies.txt" extension</strong> in Arc on music.youtube.com and save manually to ~/Documents/SANDBOX/ytdl-app/cookies.txt`;
-        }
-        setTimeout(() => {
-          btn.innerHTML = '↻ Refresh Cookies';
-          btn.className = 'btn-action';
-          btn.disabled = false;
-        }, data.hasPremium ? 4000 : 8000);
+        btn.textContent = `✓ ${data.cookieCount} cookies saved`;
+        btn.className = 'btn-action success';
+        setPill('pillCookies', true, 'cookies ✓ fresh');
+        setTimeout(() => { btn.innerHTML = '↻ Refresh Cookies'; btn.className = 'btn-action'; btn.disabled = false; }, 3000);
       } else {
         btn.textContent = '✗ Failed';
         btn.className = 'btn-action fail';
         btn.disabled = false;
-        audit.className = 'cookie-audit show err';
-        audit.innerHTML = `✗ ${(data.error || 'Unknown error').replace(/\n/g, '<br>')}`;
-        setTimeout(() => { btn.innerHTML = '↻ Refresh Cookies'; btn.className = 'btn-action'; }, 3000);
+        alert('Cookie extraction failed:\n\n' + (data.error || 'Unknown error') + '\n\nMake sure you\'re logged into music.youtube.com in your browser.');
+        setTimeout(() => { btn.innerHTML = '↻ Refresh Cookies'; btn.className = 'btn-action'; }, 2000);
       }
     } catch(e) {
       btn.textContent = '✗ Error'; btn.className = 'btn-action fail'; btn.disabled = false;
-      audit.className = 'cookie-audit show err';
-      audit.textContent = 'Network error: ' + e.message;
       setTimeout(() => { btn.innerHTML = '↻ Refresh Cookies'; btn.className = 'btn-action'; }, 2000);
     }
   }
