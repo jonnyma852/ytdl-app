@@ -8,23 +8,12 @@
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --bg: #080809;
-      --surface: #101013;
-      --surface2: #161619;
-      --border: #232328;
-      --border2: #2e2e35;
-      --gold: #c9a84c;
-      --gold-dim: #7a6230;
-      --gold-glow: rgba(201,168,76,0.12);
-      --red: #c95252;
-      --green: #52c97a;
-      --blue: #5299c9;
-      --text: #e4e2dc;
-      --text-dim: #6e6c67;
-      --text-muted: #2e2d2a;
-      --mono: 'JetBrains Mono', monospace;
-      --sans: 'Syne', sans-serif;
-      --r: 8px;
+      --bg: #080809; --surface: #101013; --surface2: #161619;
+      --border: #232328; --border2: #2e2e35;
+      --gold: #c9a84c; --gold-dim: #7a6230; --gold-glow: rgba(201,168,76,0.12);
+      --red: #c95252; --green: #52c97a; --blue: #5299c9;
+      --text: #e4e2dc; --text-dim: #6e6c67; --text-muted: #2e2d2a;
+      --mono: 'JetBrains Mono', monospace; --sans: 'Syne', sans-serif; --r: 8px;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
@@ -34,8 +23,6 @@
       pointer-events: none; z-index: 999; opacity: 0.6;
     }
     .app { position: relative; z-index: 1; max-width: 720px; margin: 0 auto; padding: 56px 20px 80px; }
-
-    /* Header */
     header { margin-bottom: 40px; animation: up 0.5s ease both; }
     .wordmark { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
     .wordmark-tag { font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.25em; text-transform: uppercase; color: var(--text-dim); }
@@ -44,35 +31,24 @@
     h1 .accent { color: var(--gold); }
     .tagline { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-top: 10px; letter-spacing: 0.04em; }
 
-    /* Status row */
+    /* Status */
     .status-row { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; animation: up 0.5s 0.05s ease both; align-items: center; }
     .pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 100px; font-family: var(--mono); font-size: 10px; color: var(--text-dim); background: var(--surface); }
     .pill .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
     .pill.ok .dot { background: var(--green); box-shadow: 0 0 5px var(--green); }
-    .pill.warn .dot { background: var(--gold); }
     .pill.err .dot { background: var(--red); }
 
-    /* Action buttons in status row */
-    .status-actions { display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; animation: up 0.5s 0.08s ease both; }
-    .btn-action {
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 6px 14px; border-radius: 100px;
-      font-family: var(--mono); font-size: 10px; font-weight: 700;
-      letter-spacing: 0.05em; cursor: pointer; border: 1px solid var(--border2);
-      background: var(--surface); color: var(--text-dim);
-      transition: all 0.15s;
-    }
+    /* Cookie refresh row */
+    .status-actions { display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; animation: up 0.5s 0.08s ease both; align-items: center; }
+    .btn-action { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 100px; font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.05em; cursor: pointer; border: 1px solid var(--border2); background: var(--surface); color: var(--text-dim); transition: all 0.15s; }
     .btn-action:hover { border-color: var(--gold-dim); color: var(--gold); }
     .btn-action:disabled { opacity: 0.4; cursor: not-allowed; }
-    .btn-action.running { border-color: var(--green); color: var(--green); }
     .btn-action.success { border-color: var(--green); color: var(--green); background: rgba(82,201,122,0.08); }
     .btn-action.fail { border-color: var(--red); color: var(--red); }
 
     /* Card */
     .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 24px; margin-bottom: 14px; animation: up 0.5s ease both; }
     .card-label { font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 12px; }
-
-    /* Inputs */
     .url-row { display: flex; gap: 8px; }
     input[type="text"] { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: var(--mono); font-size: 12px; padding: 11px 14px; outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
     input[type="text"]:focus { border-color: var(--gold-dim); box-shadow: 0 0 0 3px var(--gold-glow); }
@@ -86,7 +62,6 @@
     .btn-gold:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
     .btn-full { width: 100%; padding: 14px; font-size: 13px; letter-spacing: 0.1em; margin-top: 4px; }
 
-    /* Preview */
     .preview { display: none; gap: 14px; padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid var(--border); }
     .preview.show { display: flex; }
     .thumb { width: 110px; height: 62px; border-radius: 4px; overflow: hidden; background: var(--surface2); flex-shrink: 0; }
@@ -95,24 +70,20 @@
     .preview-title { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 5px; }
     .preview-details { font-family: var(--mono); font-size: 10px; color: var(--text-dim); }
 
-    /* Quality badge */
     .quality-badge { display: none; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 6px; font-size: 12px; font-weight: 700; margin-bottom: 12px; }
     .quality-badge.show { display: flex; }
     .quality-badge.has256 { background: rgba(82,201,122,0.08); border: 1px solid rgba(82,201,122,0.25); color: var(--green); }
     .quality-badge.no256 { background: rgba(201,168,76,0.08); border: 1px solid rgba(201,168,76,0.25); color: var(--gold); }
 
-    /* Selects */
     .fmt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
     .fmt-group label { display: block; font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px; }
     select { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: var(--mono); font-size: 12px; padding: 10px 12px; outline: none; cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236e6c67'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
 
-    /* Mode toggle */
     .mode-toggle { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 14px; background: var(--surface2); }
     .mode-btn { flex: 1; padding: 9px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; background: transparent; color: var(--text-dim); border: none; border-radius: 0; transition: all 0.15s; cursor: pointer; }
     .mode-btn.active { background: var(--gold); color: #080809; }
     .mode-btn:not(.active):hover { background: var(--surface); color: var(--text); }
 
-    /* Progress */
     .progress-wrap { display: none; margin-top: 16px; }
     .progress-wrap.show { display: block; }
     hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
@@ -123,21 +94,16 @@
     .progress-fill { height: 100%; width: 0%; border-radius: 2px; transition: width 0.3s ease; background: linear-gradient(90deg, var(--gold-dim), var(--gold)); box-shadow: 0 0 6px var(--gold); }
     .progress-meta { display: flex; gap: 14px; font-family: var(--mono); font-size: 10px; color: var(--text-dim); }
 
-    /* Console */
     .console { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; max-height: 130px; overflow-y: auto; margin-top: 10px; display: none; font-family: var(--mono); font-size: 10px; }
     .console.show { display: block; }
     .log-line { padding: 1px 0; color: var(--text-dim); border-bottom: 1px solid var(--border); }
     .log-line:last-child { border: none; }
-    .log-line.success { color: var(--green); }
     .log-line.error { color: var(--red); }
 
-    /* Done */
     .done-banner { display: none; align-items: center; gap: 8px; padding: 11px 14px; margin-top: 12px; border-radius: 6px; font-size: 12px; font-weight: 600; background: rgba(82,201,122,0.07); border: 1px solid rgba(82,201,122,0.2); color: var(--green); }
     .done-banner.show { display: flex; }
 
-    /* Spinner */
     .spin { width: 12px; height: 12px; border: 2px solid var(--border2); border-top-color: currentColor; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; vertical-align: middle; margin-right: 4px; }
-
     @keyframes spin { to { transform: rotate(360deg); } }
     @keyframes up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
     ::-webkit-scrollbar { width: 3px; }
@@ -165,14 +131,9 @@
     <div class="pill" id="pillCookies"><span class="dot"></span><span id="pillCookiesTxt">cookies...</span></div>
   </div>
 
-  <!-- Action buttons -->
+  <!-- Cookie refresh (only action needed — bgutil is automatic) -->
   <div class="status-actions">
-    <button class="btn-action" id="btnBgutil" onclick="startBgutil()">
-      ▶ Start bgutil
-    </button>
-    <button class="btn-action" id="btnCookies" onclick="refreshCookies()">
-      ↻ Refresh Cookies
-    </button>
+    <button class="btn-action" id="btnCookies" onclick="refreshCookies()">↻ Refresh Cookies</button>
     <select id="browserSelect" style="background:var(--surface2);border:1px solid var(--border);border-radius:100px;color:var(--text-dim);font-family:var(--mono);font-size:10px;padding:5px 10px;outline:none;cursor:pointer;height:28px;">
       <option value="chrome">Arc / Chrome</option>
       <option value="firefox">Firefox</option>
@@ -203,17 +164,12 @@
       </div>
     </div>
 
-    <!-- Music mode -->
     <div id="musicMode" style="display:none;">
       <div class="quality-badge" id="qualityBadge"></div>
       <div id="musicQualityRow" style="display:none; margin-bottom:14px;">
         <div class="fmt-grid">
-          <div class="fmt-group">
-            <label>Audio Quality</label>
-            <select id="musicQualitySelect" onchange="onMusicQualityChange()"></select>
-          </div>
-          <div class="fmt-group">
-            <label>Output Format</label>
+          <div class="fmt-group"><label>Audio Quality</label><select id="musicQualitySelect" onchange="onMusicQualityChange()"></select></div>
+          <div class="fmt-group"><label>Output Format</label>
             <select id="musicFormatSelect">
               <option value="m4a">M4A (AAC)</option>
               <option value="opus">Opus</option>
@@ -225,7 +181,6 @@
       <button class="btn-gold btn-full" id="musicDlBtn" onclick="doMusicDownload()">DOWNLOAD</button>
     </div>
 
-    <!-- YT mode -->
     <div id="ytMode" style="display:none;">
       <div class="mode-toggle">
         <button class="mode-btn active" id="modeVideo" onclick="setMode('video')">▶ Video + Audio</button>
@@ -235,9 +190,7 @@
         <div class="fmt-grid">
           <div class="fmt-group"><label>Quality</label><select id="ytVideoQuality"></select></div>
           <div class="fmt-group"><label>Container</label>
-            <select id="ytContainer">
-              <option value="mp4">MP4</option><option value="mkv">MKV</option><option value="webm">WebM</option>
-            </select>
+            <select id="ytContainer"><option value="mp4">MP4</option><option value="mkv">MKV</option><option value="webm">WebM</option></select>
           </div>
         </div>
       </div>
@@ -255,7 +208,6 @@
       <button class="btn-gold btn-full" id="ytDlBtn" onclick="doYtDownload()">DOWNLOAD</button>
     </div>
 
-    <!-- Progress -->
     <div class="progress-wrap" id="progressWrap">
       <hr />
       <div class="progress-header">
@@ -264,9 +216,7 @@
       </div>
       <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
       <div class="progress-meta">
-        <span id="progressSpeed">—</span>
-        <span id="progressEta">ETA: —</span>
-        <span id="progressSize">—</span>
+        <span id="progressSpeed">—</span><span id="progressEta">ETA: —</span><span id="progressSize">—</span>
       </div>
     </div>
     <div class="console" id="console"></div>
@@ -274,33 +224,16 @@
   </div>
 
 </div>
-
 <script>
-  let currentMode = 'video';
-  let musicItag = '141';
+  let currentMode = 'video', musicItag = '141';
 
-  // ── STATUS ──
   async function checkStatus() {
     try {
       const d = await fetch('/api/status').then(r => r.json());
       setPill('pillYtdlp', d.ytdlp?.available, d.ytdlp?.version || 'yt-dlp missing');
-
-      // bgutil pill + button state
-      setPill('pillBgutil', d.bgutil, d.bgutil ? 'bgutil ✓' : 'bgutil offline');
-      const btnBg = document.getElementById('btnBgutil');
-      if (d.bgutil) {
-        btnBg.textContent = '✓ bgutil running';
-        btnBg.className = 'btn-action running';
-        btnBg.disabled = true;
-      } else {
-        btnBg.innerHTML = '▶ Start bgutil';
-        btnBg.className = 'btn-action';
-        btnBg.disabled = false;
-      }
-
-      // Cookies pill
+      setPill('pillBgutil', d.bgutil, d.bgutil ? 'bgutil ✓' : 'bgutil starting...');
       if (d.cookies) {
-        const age = d.cookiesAge !== null ? ` · ${d.cookiesAge}h old` : '';
+        const age = d.cookiesAge != null ? ` · ${d.cookiesAge}h old` : '';
         setPill('pillCookies', d.cookiesAge < 48, `cookies ✓${age}`);
       } else {
         setPill('pillCookies', false, 'no cookies');
@@ -310,53 +243,18 @@
 
   function setPill(id, ok, text) {
     const el = document.getElementById(id);
-    el.classList.remove('ok', 'warn', 'err');
+    el.classList.remove('ok', 'err');
     el.classList.add(ok ? 'ok' : 'err');
     el.querySelector('span:last-child').textContent = text;
   }
 
-  // ── START BGUTIL ──
-  async function startBgutil() {
-    const btn = document.getElementById('btnBgutil');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spin"></span>Starting...';
-    btn.className = 'btn-action';
-
-    try {
-      const res = await fetch('/api/start-bgutil', { method: 'POST' });
-      const data = await res.json();
-      if (data.ok) {
-        btn.textContent = '✓ bgutil running';
-        btn.className = 'btn-action running';
-        btn.disabled = true;
-        setPill('pillBgutil', true, 'bgutil ✓');
-      } else {
-        btn.textContent = '✗ Failed — check terminal';
-        btn.className = 'btn-action fail';
-        btn.disabled = false;
-        setTimeout(() => { btn.innerHTML = '▶ Start bgutil'; btn.className = 'btn-action'; }, 3000);
-      }
-    } catch(e) {
-      btn.textContent = '✗ Error';
-      btn.className = 'btn-action fail';
-      btn.disabled = false;
-      setTimeout(() => { btn.innerHTML = '▶ Start bgutil'; btn.className = 'btn-action'; }, 3000);
-    }
-  }
-
-  // ── REFRESH COOKIES ──
   async function refreshCookies() {
     const btn = document.getElementById('btnCookies');
     const browser = document.getElementById('browserSelect').value;
     btn.disabled = true;
     btn.innerHTML = '<span class="spin"></span>Extracting...';
-    btn.className = 'btn-action';
-
     try {
-      const res = await fetch('/api/refresh-cookies', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ browser })
-      });
+      const res = await fetch('/api/refresh-cookies', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ browser }) });
       const data = await res.json();
       if (data.ok) {
         btn.textContent = `✓ ${data.cookieCount} cookies saved`;
@@ -367,93 +265,67 @@
         btn.textContent = '✗ Failed';
         btn.className = 'btn-action fail';
         btn.disabled = false;
-        alert('Cookie extraction failed:\n\n' + (data.error || 'Unknown error') + '\n\nMake sure you are logged into music.youtube.com in your browser.');
+        alert('Cookie extraction failed:\n\n' + (data.error || 'Unknown error') + '\n\nMake sure you\'re logged into music.youtube.com in your browser.');
         setTimeout(() => { btn.innerHTML = '↻ Refresh Cookies'; btn.className = 'btn-action'; }, 2000);
       }
     } catch(e) {
-      btn.textContent = '✗ Error';
-      btn.className = 'btn-action fail';
-      btn.disabled = false;
+      btn.textContent = '✗ Error'; btn.className = 'btn-action fail'; btn.disabled = false;
       setTimeout(() => { btn.innerHTML = '↻ Refresh Cookies'; btn.className = 'btn-action'; }, 2000);
     }
   }
 
-  // ── URL detection ──
   function isYTMusic(url) { return url.includes('music.youtube.com'); }
-  document.getElementById('urlInput').addEventListener('input', function() {
-    this.classList.toggle('is-music', isYTMusic(this.value));
-  });
+  document.getElementById('urlInput').addEventListener('input', function() { this.classList.toggle('is-music', isYTMusic(this.value)); });
 
-  // ── FETCH ──
   async function doFetch() {
     const url = document.getElementById('urlInput').value.trim();
     if (!url) return;
     const btn = document.getElementById('fetchBtn');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spin"></span>Fetching';
+    btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Fetching';
     document.getElementById('formatCard').style.display = 'none';
     document.getElementById('doneBanner').classList.remove('show');
     document.getElementById('progressWrap').classList.remove('show');
     document.getElementById('console').classList.remove('show');
     document.getElementById('console').innerHTML = '';
-
     try {
       const res = await fetch('/api/fetch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
       const data = await res.json();
       if (!res.ok) { alert(data.error || 'Fetch failed'); return; }
-
       if (data.thumbnail) { document.getElementById('thumbImg').src = data.thumbnail; document.getElementById('preview').classList.add('show'); }
-      else { document.getElementById('preview').classList.remove('show'); }
+      else document.getElementById('preview').classList.remove('show');
       document.getElementById('previewTitle').textContent = data.title || '—';
       const dur = data.duration ? fmtDur(data.duration) : '';
       document.getElementById('previewDetails').textContent = [dur, data.uploader].filter(Boolean).join(' · ');
-
       if (data.isMusic) renderMusicMode(data); else renderYtMode(data);
       document.getElementById('formatCard').style.display = 'block';
     } catch(e) { alert('Error: ' + e.message); }
     finally { btn.disabled = false; btn.textContent = 'Fetch'; }
   }
 
-  // ── MUSIC MODE ──
   function renderMusicMode(data) {
     document.getElementById('musicMode').style.display = 'block';
     document.getElementById('ytMode').style.display = 'none';
     document.getElementById('formatCardLabel').textContent = 'YouTube Music';
-
     const badge = document.getElementById('qualityBadge');
-    const dlBtn = document.getElementById('musicDlBtn');
     const qualityRow = document.getElementById('musicQualityRow');
     const qualitySelect = document.getElementById('musicQualitySelect');
-    qualityRow.style.display = 'block';
-    qualitySelect.innerHTML = '';
-
+    qualityRow.style.display = 'block'; qualitySelect.innerHTML = '';
     if (data.isPlaylist) {
-      if (data.has256 === true) { badge.className = 'quality-badge show has256'; badge.innerHTML = `♫ Album / Playlist — 256kbps available (${data.bestKbps}kbps on first track)`; }
-      else if (data.has256 === false) { badge.className = 'quality-badge show no256'; badge.innerHTML = `♫ Album / Playlist — 256kbps not available, best is ${data.bestKbps}kbps`; }
-      else { badge.className = 'quality-badge show no256'; badge.innerHTML = '♫ Album / Playlist'; }
+      badge.className = data.has256 === true ? 'quality-badge show has256' : 'quality-badge show no256';
+      badge.innerHTML = data.has256 === true
+        ? `♫ Album / Playlist — 256kbps available (${data.bestKbps}kbps on first track)`
+        : data.has256 === false ? `♫ Album / Playlist — best is ${data.bestKbps}kbps` : '♫ Album / Playlist';
       const opts = data.audioFormats?.length ? data.audioFormats : [
         { id: '141', ext: 'm4a', kbps: 256, label: '256kbps AAC (if available)' },
         { id: '140', ext: 'm4a', kbps: 128, label: '128kbps AAC' },
         { id: 'bestaudio', ext: 'm4a', kbps: 0, label: 'Best available' },
       ];
-      opts.forEach(o => {
-        const opt = document.createElement('option');
-        opt.value = o.id;
-        opt.textContent = o.label || `${o.kbps}kbps ${(o.ext||'').toUpperCase()} (${o.id})`;
-        if (o.id === data.bestItag) opt.selected = true;
-        qualitySelect.appendChild(opt);
-      });
+      opts.forEach(o => { const opt = document.createElement('option'); opt.value = o.id; opt.textContent = o.label || `${o.kbps}kbps ${(o.ext||'').toUpperCase()} (${o.id})`; if (o.id === data.bestItag) opt.selected = true; qualitySelect.appendChild(opt); });
       musicItag = data.bestItag || '141';
     } else {
-      if (data.has256) { badge.className = 'quality-badge show has256'; badge.innerHTML = '✓ 256kbps available'; }
-      else { badge.className = 'quality-badge show no256'; badge.innerHTML = `⚠ 256kbps not available — best is ${data.bestKbps}kbps`; }
-      (data.audioFormats || []).forEach(f => {
-        const opt = document.createElement('option');
-        opt.value = f.id;
-        opt.textContent = `${f.kbps}kbps ${f.ext.toUpperCase()} (${f.id})`;
-        if (f.id === data.bestItag) opt.selected = true;
-        qualitySelect.appendChild(opt);
-      });
+      badge.className = data.has256 ? 'quality-badge show has256' : 'quality-badge show no256';
+      badge.innerHTML = data.has256 ? '✓ 256kbps available' : `⚠ 256kbps not available — best is ${data.bestKbps}kbps`;
+      (data.audioFormats || []).forEach(f => { const opt = document.createElement('option'); opt.value = f.id; opt.textContent = `${f.kbps}kbps ${f.ext.toUpperCase()} (${f.id})`; if (f.id === data.bestItag) opt.selected = true; qualitySelect.appendChild(opt); });
       musicItag = data.bestItag;
     }
     onMusicQualityChange();
@@ -462,26 +334,20 @@
   function onMusicQualityChange() {
     const sel = document.getElementById('musicQualitySelect');
     const fmt = document.getElementById('musicFormatSelect');
-    const btn = document.getElementById('musicDlBtn');
     musicItag = sel.value;
     if (musicItag === '774') fmt.value = 'opus';
     else if (musicItag === '141' || musicItag === '140') fmt.value = 'm4a';
     const label = sel.options[sel.selectedIndex]?.textContent || '';
-    btn.textContent = `DOWNLOAD — ${label.split('(')[0].trim()}`;
+    document.getElementById('musicDlBtn').textContent = `DOWNLOAD — ${label.split('(')[0].trim()}`;
   }
 
-  // ── YT MODE ──
   function renderYtMode(data) {
     document.getElementById('ytMode').style.display = 'block';
     document.getElementById('musicMode').style.display = 'none';
     document.getElementById('formatCardLabel').textContent = 'Format';
     const vf = data.videoFormats || [], af = data.audioFormats || [];
-    document.getElementById('ytVideoQuality').innerHTML = vf.length
-      ? vf.map(f => `<option value="${f.format_id}">${f.label}</option>`).join('')
-      : '<option value="bestvideo">Best Available</option>';
-    document.getElementById('ytAudioBitrate').innerHTML = af.length
-      ? af.map(f => `<option value="${f.format_id}">${f.label}</option>`).join('')
-      : '<option value="bestaudio">Best Available</option>';
+    document.getElementById('ytVideoQuality').innerHTML = vf.length ? vf.map(f => `<option value="${f.format_id}">${f.label}</option>`).join('') : '<option value="bestvideo">Best Available</option>';
+    document.getElementById('ytAudioBitrate').innerHTML = af.length ? af.map(f => `<option value="${f.format_id}">${f.label}</option>`).join('') : '<option value="bestaudio">Best Available</option>';
   }
 
   function setMode(mode) {
@@ -492,7 +358,6 @@
     document.getElementById('ytAudioGroup').style.display = mode === 'audio' ? 'block' : 'none';
   }
 
-  // ── DOWNLOADS ──
   async function doMusicDownload() {
     const url = document.getElementById('urlInput').value.trim();
     const btn = document.getElementById('musicDlBtn');
@@ -503,8 +368,7 @@
     try {
       const res = await fetch('/api/ytmusic', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, itag: musicItag, outputFormat: outputFmt }) });
       const { jobId } = await res.json();
-      if (!jobId) return;
-      await pollJob(jobId, '~/Downloads/ytdl/YouTube Music/');
+      if (jobId) await pollJob(jobId, '~/Downloads/ytdl/YouTube Music/');
     } catch(e) { addLog('Error: ' + e.message, 'error'); }
     finally { btn.disabled = false; btn.textContent = originalLabel; }
   }
@@ -518,13 +382,11 @@
     try {
       const res = await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, audioOnly, videoFormat: audioOnly ? null : document.getElementById('ytVideoQuality').value, audioSourceFormat: audioOnly ? document.getElementById('ytAudioBitrate').value : null, audioOutputFormat: audioOnly ? document.getElementById('ytAudioOutput').value : null }) });
       const { jobId } = await res.json();
-      if (!jobId) return;
-      await pollJob(jobId, '~/Downloads/ytdl/');
+      if (jobId) await pollJob(jobId, '~/Downloads/ytdl/');
     } catch(e) { addLog('Error: ' + e.message, 'error'); }
     finally { btn.disabled = false; btn.textContent = 'DOWNLOAD'; }
   }
 
-  // ── POLLING ──
   function resetProgress() {
     document.getElementById('progressWrap').classList.add('show');
     document.getElementById('console').classList.add('show');
@@ -544,16 +406,12 @@
           if (job.percent > 0) setProgress(job.percent, job.statusMsg, job.speed, job.eta, job.size);
           else if (job.statusMsg) document.getElementById('progressLabel').textContent = job.statusMsg;
           if (job.status === 'done') {
-            clearInterval(poll);
-            setProgress(100, 'Complete!', '', '', '');
+            clearInterval(poll); setProgress(100, 'Complete!', '', '', '');
             const b = document.getElementById('doneBanner');
             b.innerHTML = `✓ Saved to <strong style="margin-left:4px;">${saveDir}</strong>`;
-            b.classList.add('show');
-            resolve();
-          } else if (job.status === 'error') {
-            clearInterval(poll); addLog(job.error || 'Failed', 'error'); resolve();
-          }
-        } catch(e) { clearInterval(poll); resolve(); }
+            b.classList.add('show'); resolve();
+          } else if (job.status === 'error') { clearInterval(poll); addLog(job.error || 'Failed', 'error'); resolve(); }
+        } catch { clearInterval(poll); resolve(); }
       }, 600);
     });
   }
@@ -578,14 +436,11 @@
 
   function fmtDur(secs) {
     const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60), s = secs % 60;
-    if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-    return `${m}:${String(s).padStart(2,'0')}`;
+    return h > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${m}:${String(s).padStart(2,'0')}`;
   }
 
   document.getElementById('urlInput').addEventListener('keydown', e => { if (e.key === 'Enter') doFetch(); });
-
   checkStatus();
-  // Re-check status every 10s to keep bgutil pill live
   setInterval(checkStatus, 10000);
 </script>
 </body>
