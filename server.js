@@ -73,7 +73,6 @@ process.on('SIGINT', () => process.exit());
 process.on('SIGTERM', () => process.exit());
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Resolve the correct --cookies-from-browser argument for a given browser key.
 function resolveBrowserArg(browserKey) {
   if (browserKey === 'arc') {
     const arcProfile = path.join(os.homedir(), 'Library/Application Support/Arc/User Data');
@@ -84,7 +83,6 @@ function resolveBrowserArg(browserKey) {
   return browserKey;
 }
 
-// Inspect a Netscape-format cookies.txt and return which key Premium cookies are present.
 function auditCookies(cookiesPath) {
   if (!fs.existsSync(cookiesPath)) return { total: 0, premiumCookies: [], hasPremium: false };
   const lines = fs.readFileSync(cookiesPath, 'utf8').split('\n').filter(l => l && !l.startsWith('#'));
@@ -101,17 +99,12 @@ function auditCookies(cookiesPath) {
   return { total: lines.length, premiumCookies: found, hasPremium };
 }
 
-// Determine if a format list contains 256kbps.
-// yt-dlp frequently misreports abr for itag 141 (shows ~141 instead of 256).
-// Itag 141 is *always* 256kbps AAC on YouTube Music — presence is the reliable signal.
-// We also keep the abr >= 200 check as a fallback for non-standard itag names.
 function detect256(audioFormats) {
   return audioFormats.some(f => f.id === '141' || f.kbps >= 200);
 }
 
-// Normalise the displayed kbps for itag 141: always show 256 regardless of what abr says.
 function normalisedKbps(f) {
-  if (f.id === '141') return 256;
+  if (f.format_id === '141') return 256;
   return Math.round(f.abr || 0);
 }
 
@@ -127,6 +120,62 @@ app.get('/api/status', (req, res) => {
     cookiesAge = Math.round(ageHours);
   }
   res.json({ ytdlp: { available: !!ytdlpVersion, version: ytdlpVersion }, bgutil, cookies: cookiesOk, cookiesAge });
+});
+
+// GET /api/debug-formats?url=<ytm-url>
+// Dumps every audio format yt-dlp sees for a track, with and without cookies,
+// so we can tell exactly what YouTube is serving and whether cookies are working.
+app.get('/api/debug-formats', (req, res) => {
+  const url = req.query.url;
+  if (!url) return res.status(400).json({ error: 'url query param required' });
+
+  const bin = YTDLP();
+  const hasCookies = fs.existsSync(COOKIES_PATH);
+
+  const cookieAudit = auditCookies(COOKIES_PATH);
+
+  const args = [
+    '--extractor-args', 'youtube:player_client=web_music',
+    '--remote-components', 'ejs:github',
+    '--dump-json', '--no-playlist',
+  ];
+  if (hasCookies) args.push('--cookies', COOKIES_PATH);
+  args.push(url.split('&')[0]);
+
+  const proc = spawn(bin, args, { env: ENV });
+  let stdout = '', stderr = '';
+  proc.stdout.on('data', d => stdout += d);
+  proc.stderr.on('data', d => stderr += d);
+  proc.on('close', code => {
+    let rawAudioFormats = [];
+    try {
+      const info = JSON.parse(stdout);
+      rawAudioFormats = (info.formats || [])
+        .filter(f => f.acodec && f.acodec !== 'none' && (!f.vcodec || f.vcodec === 'none'))
+        .map(f => ({
+          format_id: f.format_id,
+          ext: f.ext,
+          acodec: f.acodec,
+          abr: f.abr,
+          tbr: f.tbr,
+          filesize: f.filesize,
+          quality: f.quality,
+        }))
+        .sort((a, b) => (b.abr || 0) - (a.abr || 0));
+    } catch {}
+
+    const has141 = rawAudioFormats.some(f => f.format_id === '141');
+
+    res.json({
+      cookiesFile: hasCookies,
+      cookieAudit,
+      bgutil: isBgutilRunning(),
+      ytdlpExitCode: code,
+      stderr: stderr.trim().slice(0, 2000),
+      has141,
+      audioFormats: rawAudioFormats,
+    });
+  });
 });
 
 // POST /api/refresh-cookies
