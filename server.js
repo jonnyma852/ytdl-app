@@ -74,38 +74,21 @@ process.on('SIGTERM', () => process.exit());
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Resolve the correct --cookies-from-browser argument for a given browser key.
-// Arc stores its profile under a non-standard path, so we must pass the profile
-// directory explicitly: chrome:PATH  (yt-dlp supports this since 2023.03+)
 function resolveBrowserArg(browserKey) {
   if (browserKey === 'arc') {
-    // Arc profile is at ~/Library/Application Support/Arc/User Data/Default
-    const arcProfile = path.join(
-      os.homedir(),
-      'Library/Application Support/Arc/User Data'
-    );
-    if (fs.existsSync(arcProfile)) {
-      return `chrome:${arcProfile}`;
-    }
-    // Fallback: Arc without explicit path (may not work but worth trying)
+    const arcProfile = path.join(os.homedir(), 'Library/Application Support/Arc/User Data');
+    if (fs.existsSync(arcProfile)) return `chrome:${arcProfile}`;
     console.warn('[cookies] Arc profile not found at expected path, falling back to bare "chrome"');
     return 'chrome';
   }
-  // All other browsers use their standard yt-dlp name
   return browserKey;
 }
 
 // Inspect a Netscape-format cookies.txt and return which key Premium cookies are present.
-// Returns { total, premiumCookies: string[], hasPremium: bool }
 function auditCookies(cookiesPath) {
   if (!fs.existsSync(cookiesPath)) return { total: 0, premiumCookies: [], hasPremium: false };
   const lines = fs.readFileSync(cookiesPath, 'utf8').split('\n').filter(l => l && !l.startsWith('#'));
-  const PREMIUM_KEYS = [
-    '__Secure-3PSID',
-    '__Secure-3PAPISID',
-    'SAPISID',
-    'SSID',
-    'SID',
-  ];
+  const PREMIUM_KEYS = ['__Secure-3PSID', '__Secure-3PAPISID', 'SAPISID', 'SSID', 'SID'];
   const found = [];
   for (const line of lines) {
     const parts = line.split('\t');
@@ -116,6 +99,20 @@ function auditCookies(cookiesPath) {
   }
   const hasPremium = found.includes('__Secure-3PSID') || found.includes('__Secure-3PAPISID');
   return { total: lines.length, premiumCookies: found, hasPremium };
+}
+
+// Determine if a format list contains 256kbps.
+// yt-dlp frequently misreports abr for itag 141 (shows ~141 instead of 256).
+// Itag 141 is *always* 256kbps AAC on YouTube Music — presence is the reliable signal.
+// We also keep the abr >= 200 check as a fallback for non-standard itag names.
+function detect256(audioFormats) {
+  return audioFormats.some(f => f.id === '141' || f.kbps >= 200);
+}
+
+// Normalise the displayed kbps for itag 141: always show 256 regardless of what abr says.
+function normalisedKbps(f) {
+  if (f.id === '141') return 256;
+  return Math.round(f.abr || 0);
 }
 
 // GET /api/status
@@ -132,7 +129,7 @@ app.get('/api/status', (req, res) => {
   res.json({ ytdlp: { available: !!ytdlpVersion, version: ytdlpVersion }, bgutil, cookies: cookiesOk, cookiesAge });
 });
 
-// POST /api/refresh-cookies — extract cookies from browser store via yt-dlp
+// POST /api/refresh-cookies
 app.post('/api/refresh-cookies', (req, res) => {
   const browserKey = req.body.browser || 'arc';
   const browserArg = resolveBrowserArg(browserKey);
@@ -140,11 +137,8 @@ app.post('/api/refresh-cookies', (req, res) => {
 
   console.log(`[cookies] Extracting from browser arg: ${browserArg}`);
 
-  // Ensure output directory exists
   const dir = path.dirname(COOKIES_PATH);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
-  // Remove existing cookies file first so we can detect a clean write
   try { if (fs.existsSync(COOKIES_PATH)) fs.unlinkSync(COOKIES_PATH); } catch {}
 
   const args = [
@@ -236,10 +230,10 @@ app.post('/api/fetch', (req, res) => {
             const info = JSON.parse(checkOut);
             const audioFormats = (info.formats || [])
               .filter(f => f.acodec && f.acodec !== 'none' && (!f.vcodec || f.vcodec === 'none'))
-              .map(f => ({ id: f.format_id, ext: f.ext, kbps: Math.round(f.abr || 0) }))
+              .map(f => ({ id: f.format_id, ext: f.ext, kbps: normalisedKbps(f), abr: f.abr }))
               .sort((a, b) => b.kbps - a.kbps)
               .filter((f, i, arr) => i === 0 || f.kbps !== arr[i - 1].kbps);
-            const has256 = audioFormats.some(f => f.kbps >= 200);
+            const has256 = detect256(audioFormats);
             const best256 = audioFormats.find(f => f.id === '141') || audioFormats.find(f => f.kbps >= 200);
             const bestAudio = audioFormats[0];
             res.json({ isMusic: true, isPlaylist: true, title, thumbnail, uploader, has256, bestKbps: bestAudio?.kbps || 0, bestItag: has256 ? (best256?.id || '141') : (bestAudio?.id || '140'), audioFormats: audioFormats.slice(0, 6) });
@@ -265,10 +259,10 @@ app.post('/api/fetch', (req, res) => {
         const info = JSON.parse(stdout);
         const audioFormats = (info.formats || [])
           .filter(f => f.acodec && f.acodec !== 'none' && (!f.vcodec || f.vcodec === 'none'))
-          .map(f => ({ id: f.format_id, ext: f.ext, kbps: Math.round(f.abr || 0), acodec: f.acodec }))
+          .map(f => ({ id: f.format_id, ext: f.ext, kbps: normalisedKbps(f), acodec: f.acodec }))
           .sort((a, b) => b.kbps - a.kbps)
           .filter((f, i, arr) => i === 0 || f.kbps !== arr[i - 1].kbps);
-        const has256 = audioFormats.some(f => f.kbps >= 200);
+        const has256 = detect256(audioFormats);
         const best256 = audioFormats.find(f => f.id === '141') || audioFormats.find(f => f.kbps >= 200);
         const bestAudio = audioFormats[0];
         res.json({ isMusic: true, title: info.title, thumbnail: info.thumbnail, duration: info.duration, uploader: info.uploader, has256, bestKbps: bestAudio?.kbps || 0, bestItag: has256 ? (best256?.id || '141') : (bestAudio?.id || '140'), audioFormats: audioFormats.slice(0, 6) });
@@ -379,7 +373,6 @@ app.listen(PORT, () => {
   console.log(`   yt-dlp:  ${YTDLP()}`);
   console.log(`   cookies: ${fs.existsSync(COOKIES_PATH) ? '✓' : '✗'} ${COOKIES_PATH}`);
 
-  // Copy app URL to clipboard — printf avoids the "-n" literal bug with echo -n
   try {
     execSync(`printf '%s' '${APP_URL}' | pbcopy`);
     console.log(`   📋  ${APP_URL} copied to clipboard`);
