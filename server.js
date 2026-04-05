@@ -87,37 +87,64 @@ app.get('/api/status', (req, res) => {
   res.json({ ytdlp: { available: !!ytdlpVersion, version: ytdlpVersion }, bgutil, cookies: cookiesOk, cookiesAge });
 });
 
-// POST /api/refresh-cookies — extract cookies from browser store via yt-dlp
+const ARC_COOKIE_SCRIPT = path.join(__dirname, 'arc_cookie_export.py');
+
+function findArcProfile() {
+  const arcBase = path.join(os.homedir(), 'Library/Application Support/Arc/User Data');
+  for (const profile of ['Default', 'Profile 1', 'Profile 2']) {
+    const profilePath = path.join(arcBase, profile);
+    if (fs.existsSync(path.join(profilePath, 'Cookies'))) return profilePath;
+  }
+  return null;
+}
+
+// POST /api/refresh-cookies — extract cookies from browser store
+// Arc requires special handling: it uses "Arc Safe Storage" in macOS Keychain,
+// not "Chrome Safe Storage". yt-dlp's --cookies-from-browser chrome uses Chrome's
+// key, silently dropping 1400+ Arc cookies including LOGIN_INFO (Premium auth).
+// We patch yt-dlp's keyring lookup via arc_cookie_export.py instead.
 app.post('/api/refresh-cookies', (req, res) => {
-  const browserName = req.body.browser || 'chrome'; // Arc shares Chrome's cookie store
-  const bin = YTDLP();
+  const requestedBrowser = req.body.browser || 'arc';
 
   // Ensure output directory exists
   const dir = path.dirname(COOKIES_PATH);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-  // yt-dlp --cookies-from-browser reads the live browser cookie DB and writes
-  // it to the file specified by --cookies. We use --skip-download so it doesn't
-  // actually fetch the video — just extracts cookies and exits.
-  const proc = spawn(bin, [
-    '--cookies-from-browser', browserName,
-    '--cookies', COOKIES_PATH,
-    '--skip-download',
-    '--quiet',
-    'https://music.youtube.com/watch?v=dQw4w9WgXcQ',
-  ], { env: ENV });
+  let proc, stderr = '';
 
-  let stderr = '';
+  if (requestedBrowser === 'arc') {
+    // Arc: use our Python exporter that patches yt-dlp to use Arc's Keychain key
+    const arcProfile = findArcProfile();
+    const args = arcProfile
+      ? [ARC_COOKIE_SCRIPT, COOKIES_PATH, arcProfile]
+      : [ARC_COOKIE_SCRIPT, COOKIES_PATH];
+    proc = spawn(PYTHON(), args, { env: ENV });
+  } else {
+    // Other browsers: use yt-dlp's built-in extraction
+    const bin = YTDLP();
+    proc = spawn(bin, [
+      '--cookies-from-browser', requestedBrowser,
+      '--cookies', COOKIES_PATH,
+      '--skip-download', '--quiet',
+      'https://music.youtube.com/watch?v=dQw4w9WgXcQ',
+    ], { env: ENV });
+  }
+
+  let stdout = '';
+  proc.stdout?.on('data', d => stdout += d);
   proc.stderr.on('data', d => stderr += d);
   proc.on('close', () => {
     if (fs.existsSync(COOKIES_PATH)) {
-      const lines = fs.readFileSync(COOKIES_PATH, 'utf8')
-        .split('\n').filter(l => l && !l.startsWith('#')).length;
-      if (lines > 0) return res.json({ ok: true, cookieCount: lines });
+      const content = fs.readFileSync(COOKIES_PATH, 'utf8');
+      const allLines = content.split('\n').filter(l => l && !l.startsWith('#'));
+      const ytLines = allLines.filter(l => l.includes('youtube.com'));
+      if (allLines.length > 0) {
+        return res.json({ ok: true, cookieCount: allLines.length, ytCookieCount: ytLines.length });
+      }
     }
     res.status(500).json({
       ok: false,
-      error: stderr.trim() || 'No cookies written — make sure you are logged into music.youtube.com in your browser',
+      error: (stderr + stdout).trim() || 'No cookies written — make sure you are logged into music.youtube.com in Arc',
     });
   });
 });
