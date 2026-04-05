@@ -63,7 +63,7 @@ def download(url, itag="141", output_format="m4a"):
         album_dir = f"{folder_artist} - {album}" if folder_artist else album
         out_tmpl = os.path.join(
             OUTPUT, album_dir,
-            "%(track_number|0)02d - %(artist,uploader)s - %(title)s.%(ext)s",
+            "%(playlist_index,track_number)s - %(artist,uploader)s - %(title)s.%(ext)s",
         )
     else:
         # Single → flat "Artist - Title.ext"
