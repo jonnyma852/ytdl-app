@@ -12,6 +12,36 @@ COOKIES = "/Users/metic/Documents/SANDBOX/ytdl-app/cookies.txt"
 OUTPUT  = str(Path.home() / "Downloads" / "ytdl" / "YouTube Music")
 YTDLP   = "/Users/metic/anaconda3/bin/yt-dlp"
 
+BASE_FLAGS = [
+    YTDLP,
+    "--cookies", COOKIES,
+    "--extractor-args", "youtube:player_client=web_music",
+    "--remote-components", "ejs:github",
+]
+
+
+def get_album_info(url):
+    """
+    Quick metadata pre-flight (first track only).
+    Returns (folder_artist, album_name), or (None, None) for singles.
+    """
+    r = subprocess.run(
+        BASE_FLAGS + [
+            "--playlist-items", "1",
+            "--print", "%(album_artist,artist,uploader)s\t%(album)s",
+            "--output-na-placeholder", "",
+            url,
+        ],
+        capture_output=True, text=True,
+    )
+    line = r.stdout.strip().split("\n")[0] if r.stdout.strip() else ""
+    if "\t" not in line:
+        return None, None
+    artist, album = line.split("\t", 1)
+    album = album.strip()
+    return (artist.strip(), album) if album else (None, None)
+
+
 def download(url, itag="141", output_format="m4a"):
     Path(OUTPUT).mkdir(parents=True, exist_ok=True)
 
@@ -24,18 +54,22 @@ def download(url, itag="141", output_format="m4a"):
 
     needs_extract = itag == "774" or output_format in ('mp3', 'opus', 'flac', 'ogg')
 
-    out_tmpl = (
-        OUTPUT + "/"
-        "%(album|)s%(album&/|)s"
-        "%(track_number|)s%(track_number& - |)s"
-        "%(artist,uploader)s - %(title)s.%(ext)s"
-    )
+    # Choose output template based on whether this is an album or a single.
+    # yt-dlp templates can't conditionally include a field reference inside a
+    # branch expression, so we resolve the folder name in Python first.
+    folder_artist, album = get_album_info(url)
+    if album:
+        # Album track → "Artist - Album Name/[NN - ]Artist - Title.ext"
+        album_dir = f"{folder_artist} - {album}" if folder_artist else album
+        out_tmpl = os.path.join(
+            OUTPUT, album_dir,
+            "%(track_number|)s%(track_number& - |)s%(artist,uploader)s - %(title)s.%(ext)s",
+        )
+    else:
+        # Single → flat "Artist - Title.ext"
+        out_tmpl = os.path.join(OUTPUT, "%(artist,uploader)s - %(title)s.%(ext)s")
 
-    base_args = [
-        YTDLP,
-        "--cookies", COOKIES,
-        "--extractor-args", "youtube:player_client=web_music",
-        "--remote-components", "ejs:github",
+    base_args = BASE_FLAGS + [
         "-f", fmt,
         "--add-metadata",
         "--embed-thumbnail",
