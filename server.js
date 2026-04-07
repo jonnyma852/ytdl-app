@@ -231,7 +231,10 @@ app.post('/api/fetch', (req, res) => {
     });
 
   } else {
-    const proc = spawn(bin, ['--dump-json', '--no-playlist', url], { env: ENV });
+    const ytArgs = ['--dump-json', '--no-playlist'];
+    if (hasCookies) ytArgs.push('--cookies', COOKIES_PATH);
+    ytArgs.push(url);
+    const proc = spawn(bin, ytArgs, { env: ENV });
     let stdout = '', stderr = '';
     proc.stdout.on('data', d => stdout += d);
     proc.stderr.on('data', d => stderr += d);
@@ -265,6 +268,7 @@ app.post('/api/download', (req, res) => {
   if (!fs.existsSync(downloadDir)) fs.mkdirSync(downloadDir, { recursive: true });
   const bin = YTDLP();
   let args = ['--no-playlist', '--newline', '-o', path.join(downloadDir, '%(title)s.%(ext)s')];
+  if (fs.existsSync(COOKIES_PATH)) args.push('--cookies', COOKIES_PATH);
   if (audioOnly) { args.push('-f', audioSourceFormat || 'bestaudio', '-x', '--audio-format', audioOutputFormat || 'mp3'); }
   else { args.push('-f', videoFormat ? `${videoFormat}+bestaudio/best` : 'bestvideo+bestaudio/best', '--merge-output-format', 'mp4'); }
   args.push(url);
